@@ -1,0 +1,8 @@
+{
+  "name": "VitaTrack",
+  "description": "A sophisticated health and wellness tracker with a premium user interface. Monitor your vitals, track progress with elegant data visualizations, and stay motivated with a personalized Health Score.",
+  "requestFramePermissions": [
+    "camera",
+    "geolocation"
+  ]
+}

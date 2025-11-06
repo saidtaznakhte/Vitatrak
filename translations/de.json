@@ -1,0 +1,22 @@
+{
+  "settings": "Einstellungen",
+  "customize_experience": "Passen Sie Ihr App-Erlebnis an.",
+  "personal_details": "Persönliche Daten",
+  "language": "Sprache",
+  "appearance": "Erscheinungsbild",
+  "light": "Hell",
+  "dark": "Dunkel",
+  "welcome_back": "Willkommen zurück!",
+  "health_snapshot": "Hier ist Ihr Gesundheits-Snapshot.",
+  "english": "Englisch",
+  "spanish": "Spanisch",
+  "french": "Französisch",
+  "german": "Deutsch",
+  "arabic": "Arabisch",
+  "select_language": "Sprache auswählen",
+  "save_changes": "Änderungen speichern",
+  "home": "Start",
+  "progress": "Fortschritt",
+  "plan": "Plan",
+  "community": "Community"
+}

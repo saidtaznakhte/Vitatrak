@@ -1,0 +1,22 @@
+{
+  "settings": "Settings",
+  "customize_experience": "Customize your app experience.",
+  "personal_details": "Personal Details",
+  "language": "Language",
+  "appearance": "Appearance",
+  "light": "Light",
+  "dark": "Dark",
+  "welcome_back": "Welcome Back!",
+  "health_snapshot": "Here's your health snapshot.",
+  "english": "English",
+  "spanish": "Spanish",
+  "french": "French",
+  "german": "German",
+  "arabic": "Arabic",
+  "select_language": "Select Language",
+  "save_changes": "Save Changes",
+  "home": "Home",
+  "progress": "Progress",
+  "plan": "Plan",
+  "community": "Community"
+}

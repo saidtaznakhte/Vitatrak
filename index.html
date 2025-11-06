@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>VitaTrack</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Poppins', 'sans-serif'],
+            },
+            colors: {
+              'background-light': '#F7F7F7',
+              'background-dark': '#121212',
+              'card-light': '#FFFFFF',
+              'card-dark': '#1E1E1E',
+              'text-primary-light': '#1C1C1E',
+              'text-primary-dark': '#F2F2F7',
+              'text-secondary-light': '#8A8A8E',
+              'text-secondary-dark': '#8D8D93',
+              'accent': '#00A99D', // Vibrant deep teal
+              'accent-yellow': '#FBBF24',
+              'accent-red': '#F87171',
+            },
+            animation: {
+              'fade-in': 'fadeIn 0.5s ease-in-out',
+              'scale-in': 'scaleIn 0.5s ease-out',
+              'fade-in-bounce': 'fadeInBounce 0.6s ease-out forwards',
+            },
+            keyframes: {
+              fadeIn: {
+                '0%': { opacity: 0, transform: 'translateY(10px)' },
+                '100%': { opacity: 1, transform: 'translateY(0)' },
+              },
+              scaleIn: {
+                '0%': { opacity: 0, transform: 'scale(0.9)' },
+                '100%': { opacity: 1, transform: 'scale(1)' },
+              },
+              fadeInBounce: {
+                '0%': { opacity: 0, transform: 'translateY(10px) scale(0.95)' },
+                '70%': { opacity: 1, transform: 'translateY(-5px) scale(1.02)' },
+                '100%': { opacity: 1, transform: 'translateY(0) scale(1)' },
+              }
+            },
+          },
+        },
+      }
+    </script>
+  <script type="importmap">
+{
+  "imports": {
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "recharts": "https://aistudiocdn.com/recharts@^3.3.0",
+    "@google/genai": "https://aistudiocdn.com/@google/genai"
+  }
+}
+</script>
+</head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>
