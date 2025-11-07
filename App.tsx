@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import Dashboard from './components/Dashboard';
 import Progress from './components/Progress';
@@ -240,11 +241,22 @@ const App: React.FC = () => {
     setIsTracking(true);
     const watchId = navigator.geolocation.watchPosition(
       (position) => {
+        // Filter out inaccurate GPS readings. Accuracy is in meters.
+        if (position.coords.accuracy > 15) {
+          console.warn(`Skipping position update due to low accuracy: ${position.coords.accuracy}m`);
+          return;
+        }
+
         if (lastPositionRef.current) {
           const distance = haversineDistance(
             lastPositionRef.current.coords,
             position.coords
           );
+          
+          // Distance threshold: only count movement over 1 meter to filter out GPS jitter.
+          if (distance < 1) {
+            return;
+          }
           
           // 1 meter is roughly 1.3 steps for an average person
           const newSteps = Math.round(distance * 1.3);

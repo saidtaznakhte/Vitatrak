@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { GoogleGenAI, Type } from "@google/genai";
 import type { LoggedMeal, Macro } from '../types';
 import MacroCard from './MacroCard';
-import { ChevronLeftIcon } from './icons/ChevronLeftIcon';
-import { ChevronRightIcon } from './icons/ChevronRightIcon';
 import { SpinnerIcon } from './icons/SpinnerIcon';
+import WeeklyCalendar from './WeeklyCalendar';
+import CalendarModal from './CalendarModal';
 
 const macroGoals = {
   'Calories': 2000,
@@ -18,23 +18,9 @@ const Plan: React.FC = () => {
   const [plannedMeals, setPlannedMeals] = useState<LoggedMeal[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const isToday = (date: Date) => {
-    const today = new Date();
-    return date.getDate() === today.getDate() &&
-           date.getMonth() === today.getMonth() &&
-           date.getFullYear() === today.getFullYear();
-  };
+  const [isCalendarModalOpen, setIsCalendarModalOpen] = useState(false);
 
   useEffect(() => {
-    // Only fetch plans for the current date to conserve API usage
-    if (!isToday(currentDate)) {
-        setPlannedMeals([]);
-        setIsLoading(false);
-        setError(null);
-        return;
-    }
-
     const fetchMealPlan = async (locationPrompt: string) => {
       setIsLoading(true);
       setError(null);
@@ -44,7 +30,7 @@ const Plan: React.FC = () => {
             model: 'gemini-2.5-flash',
             contents: {
                 parts: [{
-                    text: `Generate a culturally relevant one-day meal plan (Breakfast, Lunch, Dinner, Snack) for ${locationPrompt}. The total calories should be around 2000. For each meal, provide the name, estimated calories, protein, carbs, and fats. Return the response as a JSON array of objects, where each object has 'name', 'calories', 'mealType', 'protein', 'carbs', and 'fats'.`
+                    text: `Generate a culturally relevant one-day meal plan (Breakfast, Lunch, Dinner, Snack) for ${locationPrompt} on a ${currentDate.toLocaleDateString('en-US', { weekday: 'long' })}. The total calories should be around 2000. For each meal, provide the name, estimated calories, protein, carbs, and fats. Return the response as a JSON array of objects, where each object has 'name', 'calories', 'mealType', 'protein', 'carbs', and 'fats'.`
                 }]
             },
             config: {
@@ -116,25 +102,10 @@ const Plan: React.FC = () => {
       return acc;
   }, { Calories: 0, Protein: 0, Carbs: 0, Fats: 0 });
 
-  const getWeekDays = (baseDate: Date) => {
-    const startOfWeek = new Date(baseDate);
-    startOfWeek.setDate(baseDate.getDate() - baseDate.getDay());
-    return Array.from({ length: 7 }).map((_, i) => {
-        const day = new Date(startOfWeek);
-        day.setDate(startOfWeek.getDate() + i);
-        return day;
-    });
+  const handleDateSelect = (date: Date) => {
+      setCurrentDate(date);
+      setIsCalendarModalOpen(false);
   };
-
-  const weekDays = getWeekDays(currentDate);
-
-  const changeDate = (offset: number) => {
-      setCurrentDate(prev => {
-          const newDate = new Date(prev);
-          newDate.setDate(prev.getDate() + offset);
-          return newDate;
-      })
-  }
 
   const MealItem: React.FC<{meal: LoggedMeal}> = ({ meal }) => (
     <div className="bg-card-light dark:bg-card-dark p-3 rounded-lg flex justify-between items-center animate-fade-in">
@@ -156,7 +127,7 @@ const Plan: React.FC = () => {
       return <p className="text-center text-red-500 py-8">{error}</p>;
     }
     if (plannedMeals.length === 0) {
-      return <p className="text-center text-text-secondary-light dark:text-text-secondary-dark py-8">No meals planned for this day.</p>;
+      return <p className="text-center text-text-secondary-light dark:text-text-secondary-dark py-8">No meal suggestions for this day.</p>;
     }
 
     return (['Breakfast', 'Lunch', 'Dinner', 'Snack'] as const).map(mealType => {
@@ -182,23 +153,9 @@ const Plan: React.FC = () => {
       </header>
 
       {/* Date Selector */}
-      <div className="bg-card-light dark:bg-card-dark p-3 rounded-2xl shadow-lg">
-        <div className="flex justify-between items-center mb-3 px-2">
-            <button onClick={() => changeDate(-7)} className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-white/10"><ChevronLeftIcon className="w-5 h-5" /></button>
-            <p className="font-bold text-text-primary-light dark:text-text-primary-dark">{currentDate.toLocaleString('default', { month: 'long', year: 'numeric' })}</p>
-            <button onClick={() => changeDate(7)} className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-white/10"><ChevronRightIcon className="w-5 h-5" /></button>
-        </div>
-        <div className="flex justify-around">
-            {weekDays.map(day => (
-                <button key={day.toISOString()} onClick={() => setCurrentDate(day)} className="flex flex-col items-center space-y-2 p-1 rounded-lg">
-                    <span className="text-xs font-medium text-text-secondary-light dark:text-text-secondary-dark">{day.toLocaleString('default', { weekday: 'short' })}</span>
-                    <span className={`flex items-center justify-center w-8 h-8 text-sm font-semibold rounded-full ${day.toDateString() === currentDate.toDateString() ? 'bg-accent text-white' : 'hover:bg-gray-200 dark:hover:bg-white/10'}`}>
-                        {day.getDate()}
-                    </span>
-                </button>
-            ))}
-        </div>
-      </div>
+      <button onClick={() => setIsCalendarModalOpen(true)} className="w-full text-left active:scale-[0.98] transition-transform duration-200">
+        <WeeklyCalendar selectedDate={currentDate} />
+      </button>
       
       {/* Projected Macros */}
       <div>
@@ -225,6 +182,14 @@ const Plan: React.FC = () => {
       <button className="w-full bg-accent text-white font-bold py-3 px-4 rounded-lg flex items-center justify-center hover:bg-accent/90 transition-colors">
         Add Meal to Plan
       </button>
+      
+      {isCalendarModalOpen && (
+        <CalendarModal
+            selectedDate={currentDate}
+            onClose={() => setIsCalendarModalOpen(false)}
+            onDateSelect={handleDateSelect}
+        />
+      )}
     </div>
   );
 };
