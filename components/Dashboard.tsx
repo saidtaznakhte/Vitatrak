@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
+
+import React, { useState, useEffect, useMemo } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend } from 'recharts';
 import WeeklyCalendar from './WeeklyCalendar';
 import HealthScore from './HealthScore';
@@ -48,6 +49,8 @@ interface DashboardProps {
   isTracking: boolean;
   onStartTracking: () => void;
   onStopTracking: () => void;
+  currentWeight: number;
+  goalWeight: number;
 }
 
 const MealDetailModal: React.FC<{ meal: LoggedMeal; onClose: () => void; onUpdateMealType: (id: number, newMealType: 'Breakfast' | 'Lunch' | 'Dinner' | 'Snack') => void; }> = ({ meal, onClose, onUpdateMealType }) => {
@@ -169,7 +172,8 @@ const Dashboard: React.FC<DashboardProps> = (props) => {
   const { 
     macroGoals, loggedMeals, onLogMeal, onDeleteMeal, onUpdateMealType, profile, dailySteps, onLogSteps,
     waterIntake, onWaterIntakeChange, sleepHours, onSleepHoursChange, mood, onMoodChange, activeCalories, vitals, onUpdateVitals,
-    lastSynced, onSyncData, isTracking, onStartTracking, onStopTracking
+    lastSynced, onSyncData, isTracking, onStartTracking, onStopTracking,
+    currentWeight, goalWeight
   } = props;
   
   const { showSuccess } = useFeedback();
@@ -198,147 +202,96 @@ const Dashboard: React.FC<DashboardProps> = (props) => {
     return acc;
   }, { Calories: 0, Protein: 0, Carbs: 0, Fats: 0 });
 
+  // FIX: Define the 'remaining' object by calculating the difference between macro goals and consumed macros.
   const remaining = {
-    Calories: macroGoals.Calories.goal - consumed.Calories,
-    Protein: macroGoals.Protein.goal - consumed.Protein,
-    Carbs: macroGoals.Carbs.goal - consumed.Carbs,
-    Fats: macroGoals.Fats.goal - consumed.Fats,
+    Calories: Math.max(0, macroGoals.Calories.goal - consumed.Calories),
+    Protein: Math.max(0, macroGoals.Protein.goal - consumed.Protein),
+    Carbs: Math.max(0, macroGoals.Carbs.goal - consumed.Carbs),
+    Fats: Math.max(0, macroGoals.Fats.goal - consumed.Fats),
   };
 
-  const handleMealCardClick = (mealType: 'Breakfast' | 'Lunch' | 'Dinner' | 'Snack') => {
-    setSelectedMealType(mealType);
-    setIsLogModalOpen(true);
-  };
+  const { healthScore, healthFeedback } = useMemo(() => {
+    const STEPS_GOAL = 10000;
+    const WATER_GOAL = 8;
+    const SLEEP_GOAL = 8;
 
-  const calculateHealthScore = () => {
-    const nutritionScore = consumed.Calories > 0 ? (consumed.Calories / macroGoals.Calories.goal) * 10 : 0;
-    const hydrationScore = (waterIntake / 8) * 10;
-    const sleepScore = (sleepHours / 8) * 10;
-    const averageScore = (nutritionScore + hydrationScore + sleepScore) / 3;
-    return parseFloat(averageScore.toFixed(1));
-  };
-  
-  const healthScore = calculateHealthScore();
-  
-  const getHealthScoreFeedback = () => {
-    if (healthScore < 5) return "Let's focus on the basics. Try adding a bit more water and aiming for an earlier bedtime.";
-    if (sleepHours < 7) return "Overall good! Improving sleep could boost your energy and recovery.";
-    if (waterIntake < 6) return "You're doing great! A couple more glasses of water will make a big difference.";
-    return "Amazing consistency! Your nutrition, hydration, and sleep are all well-balanced. Keep it up!";
-  };
+    const scores = {
+      calories: macroGoals.Calories.goal > 0 ? Math.max(0, 2.5 * (1 - Math.abs(consumed.Calories - macroGoals.Calories.goal) / macroGoals.Calories.goal)) : 0,
+      protein: macroGoals.Protein.goal > 0 ? Math.min(1.5, (consumed.Protein / macroGoals.Protein.goal) * 1.5) : 0,
+      steps: Math.min(2, (dailySteps.steps / STEPS_GOAL) * 2),
+      water: Math.min(2, (waterIntake / WATER_GOAL) * 2),
+      sleep: Math.min(2, (sleepHours / SLEEP_GOAL) * 2),
+    };
 
-  const handleDeleteMeal = (id: number) => {
-    onDeleteMeal(id);
-    triggerHapticFeedback();
-  };
-  
+    const totalScore = Object.values(scores).reduce((sum, score) => sum + score, 0);
+    
+    let feedback = "You're doing great! Keep up the balanced effort.";
+    if (totalScore < 8) {
+        const lowestMetric = (Object.keys(scores) as Array<keyof typeof scores>).reduce((a, b) => scores[a] < scores[b] ? a : b);
+        switch (lowestMetric) {
+            case 'calories': feedback = "Focus on your calorie goal to improve your score."; break;
+            case 'protein': feedback = "A bit more protein could boost your results."; break;
+            case 'steps': feedback = "A short walk could make a big difference today!"; break;
+            case 'water': feedback = "Stay hydrated to elevate your health score."; break;
+            case 'sleep': feedback = "A good night's rest is key to a better score."; break;
+        }
+    }
+    
+    return {
+      healthScore: parseFloat(Math.min(10, totalScore).toFixed(1)),
+      healthFeedback: feedback
+    };
+  }, [macroGoals, consumed, dailySteps, waterIntake, sleepHours]);
+
+
   const handleCopyMeal = (id: number) => {
-    const mealToCopy = loggedMeals.find(meal => meal.id === id);
+    const mealToCopy = loggedMeals.find(m => m.id === id);
     if (mealToCopy) {
-      const { id: mealId, mealType, date, ...mealNutrition } = mealToCopy;
-      onLogMeal([mealNutrition], mealType, new Date()); // Copy to today
-      alert(`Copied "${mealToCopy.name}" to today's log!`);
+      const newMeal: MealNutritionInfo = {
+        name: mealToCopy.name,
+        calories: mealToCopy.calories,
+        protein: mealToCopy.protein,
+        carbs: mealToCopy.carbs,
+        fats: mealToCopy.fats
+      };
+      onLogMeal([newMeal], mealToCopy.mealType, new Date(currentDate));
+      showSuccess();
     }
   };
 
-  const handleAddMeal = (newMeals: MealNutritionInfo[]) => {
-    onLogMeal(newMeals, selectedMealType, currentDate);
-    setIsLogModalOpen(false);
+  const handleOpenLogMealModal = (mealType: 'Breakfast' | 'Lunch' | 'Dinner' | 'Snack') => {
+    setSelectedMealType(mealType);
+    setIsLogModalOpen(true);
   };
   
-  const handleViewMealDetails = (meal: LoggedMeal) => {
-    setSelectedMealDetails(meal);
+  const handleLogOtherFromQuickLog = (mealType: 'Breakfast' | 'Lunch' | 'Dinner' | 'Snack') => {
+    setIsQuickLogOpen(false);
+    handleOpenLogMealModal(mealType);
   };
   
-  const handleDateSelect = (date: Date) => {
-      setCurrentDate(date);
-      setIsCalendarModalOpen(false);
-  };
-  
-  const handleSaveSteps = (steps: number) => {
-    onLogSteps(steps);
-    setIsLogStepsModalOpen(false);
-  };
-
-  const handleSaveSleep = (hours: number) => {
-    onSleepHoursChange(hours);
-    setIsLogSleepModalOpen(false);
-  };
-
-  const handleSaveVitals = (newVitals: { heartRate: number; spO2: number }) => {
-    onUpdateVitals({
-      ...newVitals,
-      bloodPressure: '120/80', // Simulated value
-    });
-    setIsVitalsModalOpen(false);
-  };
-
-  const handleSaveSyncData = (data: { steps: number, sleep: number }) => {
-    onSyncData(data);
-    setIsSyncModalOpen(false);
-    showSuccess();
-  };
-
-  const formatTimeSince = (isoDate: string | null): string => {
-    if (!isoDate) return "Never";
-    const date = new Date(isoDate);
-    const now = new Date();
-    const diffSeconds = Math.round((now.getTime() - date.getTime()) / 1000);
-
-    if (diffSeconds < 60) return "Just now";
-    const diffMinutes = Math.round(diffSeconds / 60);
-    if (diffMinutes < 60) return `${diffMinutes}m ago`;
-    const diffHours = Math.round(diffMinutes / 60);
-    if (diffHours < 24) return `${diffHours}h ago`;
-    
-    return date.toLocaleDateString();
-  };
-
-  const hour = new Date().getHours();
-  const showDinnerPredictor = hour >= 17 && hour < 22 && !mealsForSelectedDate.some(m => m.mealType === 'Dinner') && isToday;
-
-  const MacroStatCard: React.FC<{ label: string; consumed: number; goal: number; colorClass: string }> = ({ label, consumed, goal, colorClass }) => (
-    <div className="bg-background-light dark:bg-card-dark p-3 rounded-lg text-center shadow-inner">
-      <p className={`font-semibold text-sm ${colorClass}`}>{label}</p>
-      <p className="font-bold text-text-primary-light dark:text-text-primary-dark mt-1">
-        {Math.round(consumed)} / {goal}g
-      </p>
-    </div>
-  );
-
   return (
-    <>
-      <div className="p-4 sm:p-6 space-y-6">
-        <header className="flex justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-bold text-text-primary-light dark:text-text-primary-dark">{isToday ? "Welcome Back!" : currentDate.toLocaleDateString('en-US', { weekday: 'long' })}</h1>
-            <p className="text-text-secondary-light dark:text-text-secondary-dark">{isToday ? "Here's your health snapshot." : currentDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
-          </div>
-          <div className="flex items-center space-x-2">
-            <button onClick={() => setIsSyncModalOpen(true)} className="flex items-center space-x-2 p-2 bg-card-light dark:bg-card-dark rounded-full shadow-md text-xs font-semibold text-accent transition-colors hover:bg-gray-100 dark:hover:bg-white/10">
-              <SyncIcon className="w-5 h-5" />
-              <span className="pr-2 whitespace-nowrap">
-                Synced: {formatTimeSince(lastSynced)}
-              </span>
-            </button>
-            <img src={profile.avatarUrl} alt="User Avatar" className="w-10 h-10 rounded-full" />
-          </div>
-        </header>
-        
-        <button onClick={() => setIsCalendarModalOpen(true)} className="w-full text-left active:scale-[0.98] transition-transform duration-200">
-          <WeeklyCalendar selectedDate={currentDate} />
-        </button>
-        
-        <div className="bg-card-light dark:bg-card-dark p-6 rounded-2xl shadow-lg">
-           <div className="text-center">
-            <h2 className="text-4xl font-extrabold text-text-primary-light dark:text-text-primary-dark tracking-tight">
-                {Math.round(consumed.Calories).toLocaleString()} / {macroGoals.Calories.goal.toLocaleString()} kcal
-            </h2>
-            <p className="text-text-secondary-light dark:text-text-secondary-dark mt-1 font-medium">
-                Remaining: {remaining.Calories.toLocaleString()} kcal
-            </p>
-          </div>
-          <div className="my-6 h-72 sm:h-80">
+    <div className="p-4 sm:p-6 space-y-6">
+      <header className="flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-bold text-text-primary-light dark:text-text-primary-dark">
+            Hello, {profile.name}
+          </h1>
+          <p className="text-text-secondary-light dark:text-text-secondary-dark">Here's your health snapshot.</p>
+        </div>
+        <img src={profile.avatarUrl} alt={profile.name} className="w-12 h-12 rounded-full" />
+      </header>
+
+      <button onClick={() => setIsCalendarModalOpen(true)} className="w-full">
+        <WeeklyCalendar selectedDate={currentDate} />
+      </button>
+
+      <div className="space-y-6">
+        <div className="bg-card-light dark:bg-card-dark p-4 sm:p-6 rounded-2xl shadow-lg">
+          <HealthScore score={healthScore} feedback={healthFeedback} />
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 h-64">
             <CombinedMacroChart
               calories={{ consumed: consumed.Calories, goal: macroGoals.Calories.goal }}
               protein={{ consumed: consumed.Protein, goal: macroGoals.Protein.goal }}
@@ -346,136 +299,54 @@ const Dashboard: React.FC<DashboardProps> = (props) => {
               fats={{ consumed: consumed.Fats, goal: macroGoals.Fats.goal }}
             />
           </div>
-           <div className="grid grid-cols-3 gap-2 sm:gap-4">
-              <MacroStatCard label="Protein" consumed={consumed.Protein} goal={macroGoals.Protein.goal} colorClass="text-blue-500" />
-              <MacroStatCard label="Carbs" consumed={consumed.Carbs} goal={macroGoals.Carbs.goal} colorClass="text-orange-500" />
-              <MacroStatCard label="Fat" consumed={consumed.Fats} goal={macroGoals.Fats.goal} colorClass="text-green-500" />
-          </div>
-        </div>
-
-
-        <div className="bg-card-light dark:bg-card-dark p-6 rounded-2xl shadow-lg">
-          <HealthScore score={healthScore} feedback={getHealthScoreFeedback()} />
-        </div>
-        
-        {showDinnerPredictor && (
-          <DinnerPredictor
-            calories={remaining.Calories}
-            protein={remaining.Protein}
+          <ActivityCard 
+            steps={dailySteps.steps}
+            stepsGoal={10000}
+            activeCalories={activeCalories}
+            onStepsClick={() => setIsLogStepsModalOpen(true)}
+            isTracking={isTracking}
+            onStartTracking={onStartTracking}
+            onStopTracking={onStopTracking}
           />
-        )}
-        
-        <div>
-          <h2 className="text-xl font-bold text-text-primary-light dark:text-text-primary-dark mb-4">Vitals Monitor</h2>
-          <VitalsMonitor vitals={vitals} onScan={() => setIsVitalsModalOpen(true)} />
         </div>
 
-        <div>
-          <h2 className="text-xl font-bold text-text-primary-light dark:text-text-primary-dark mb-4">Activity & Wellness</h2>
-          <div className="grid grid-cols-2 gap-4 animate-scale-in">
-            <button onClick={() => setIsWaterModalOpen(true)} className="transition-transform duration-200 active:scale-95">
-              <WaterIntakeCard intake={waterIntake} goal={8} />
-            </button>
-            <SleepAndMoodCard sleepHours={sleepHours} mood={mood} onSleepHoursChange={onSleepHoursChange} setMood={onMoodChange} onSleepClick={() => setIsLogSleepModalOpen(true)} />
-             <ActivityCard 
-                steps={isToday ? dailySteps.steps : 0} 
-                activeCalories={isToday ? activeCalories : 0} 
-                onStepsClick={() => setIsLogStepsModalOpen(true)}
-                isTracking={isTracking}
-                onStartTracking={onStartTracking}
-                onStopTracking={onStopTracking}
-             />
-          </div>
-        </div>
-        
-        <div>
-          <h2 className="text-xl font-bold text-text-primary-light dark:text-text-primary-dark mb-4">
-            Meals for {isToday ? 'Today' : currentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-          </h2>
-          {mealsForSelectedDate.length > 0 ? (
-            <div className="space-y-3">
-              {mealsForSelectedDate.map(meal => (
-                <LoggedMealItem key={meal.id} meal={meal} onDelete={handleDeleteMeal} onCopy={handleCopyMeal} onClick={handleViewMealDetails} />
-              ))}
-            </div>
-          ) : (
-            <RecentlyUploaded />
-          )}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          <WaterIntakeCard intake={waterIntake} goal={8} onClick={() => setIsWaterModalOpen(true)} />
+          <SleepAndMoodCard sleepHours={sleepHours} mood={mood} setMood={onMoodChange} onSleepClick={() => setIsLogSleepModalOpen(true)} />
+          <VitalsMonitor onScan={() => setIsVitalsModalOpen(true)} vitals={vitals} />
         </div>
       </div>
-      
-      <button 
-        onClick={() => setIsQuickLogOpen(true)}
-        className="fixed bottom-28 right-5 sm:right-6 bg-accent text-white rounded-full p-4 shadow-lg z-40 transform transition-transform active:scale-90 hover:scale-105"
-        aria-label="Quick Log Meal"
-      >
-        <AddIcon className="w-8 h-8" />
-      </button>
 
-      {isLogModalOpen && (
-        <LogMealModal 
-          mealType={selectedMealType} 
-          onClose={() => setIsLogModalOpen(false)} 
-          onAddMeal={handleAddMeal}
-        />
-      )}
-      {isWaterModalOpen && (
-        <WaterIntakeModal 
-            currentIntake={waterIntake}
-            goal={8}
-            onClose={() => setIsWaterModalOpen(false)}
-            onIntakeChange={onWaterIntakeChange}
-        />
-      )}
-      {isQuickLogOpen && (
-        <QuickLogSuggestion 
-          onClose={() => setIsQuickLogOpen(false)} 
-          onLogOther={(mealType) => {
-            setIsQuickLogOpen(false);
-            handleMealCardClick(mealType);
-          }}
-        />
-      )}
-      {selectedMealDetails && (
-        <MealDetailModal
-          meal={selectedMealDetails}
-          onClose={() => setSelectedMealDetails(null)}
-          onUpdateMealType={onUpdateMealType}
-        />
-      )}
-      {isCalendarModalOpen && (
-        <CalendarModal
-            selectedDate={currentDate}
-            onClose={() => setIsCalendarModalOpen(false)}
-            onDateSelect={handleDateSelect}
-        />
-      )}
-      {isVitalsModalOpen && (
-        <VitalsScanModal onClose={() => setIsVitalsModalOpen(false)} onSave={handleSaveVitals} />
-      )}
-      {isLogStepsModalOpen && (
-        <LogStepsModal
-          currentSteps={dailySteps.steps}
-          onClose={() => setIsLogStepsModalOpen(false)}
-          onSave={handleSaveSteps}
-        />
-      )}
-      {isLogSleepModalOpen && (
-        <LogSleepModal
-          currentHours={sleepHours}
-          onClose={() => setIsLogSleepModalOpen(false)}
-          onSave={handleSaveSleep}
-        />
-      )}
-      {isSyncModalOpen && (
-        <SyncDataModal
-          currentSteps={dailySteps.steps}
-          currentSleep={sleepHours}
-          onClose={() => setIsSyncModalOpen(false)}
-          onSave={handleSaveSyncData}
-        />
-      )}
-    </>
+      <div>
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-bold text-text-primary-light dark:text-text-primary-dark">Today's Log</h2>
+          <button onClick={() => setIsQuickLogOpen(true)} className="p-2 bg-accent rounded-full text-white shadow-lg">
+            <AddIcon className="w-6 h-6" />
+          </button>
+        </div>
+        {mealsForSelectedDate.length > 0 ? (
+          <div className="space-y-3">
+            {mealsForSelectedDate.map(meal => (
+              <LoggedMealItem key={meal.id} meal={meal} onDelete={onDeleteMeal} onCopy={handleCopyMeal} onClick={setSelectedMealDetails} />
+            ))}
+          </div>
+        ) : (
+          <RecentlyUploaded />
+        )}
+      </div>
+
+      <DinnerPredictor calories={remaining.Calories} protein={remaining.Protein} />
+
+      {isLogModalOpen && <LogMealModal mealType={selectedMealType} onClose={() => setIsLogModalOpen(false)} onAddMeal={(meals) => { onLogMeal(meals, selectedMealType, currentDate); setIsLogModalOpen(false); showSuccess(); }} />}
+      {isWaterModalOpen && <WaterIntakeModal currentIntake={waterIntake} goal={8} onClose={() => setIsWaterModalOpen(false)} onIntakeChange={onWaterIntakeChange} />}
+      {isVitalsModalOpen && <VitalsScanModal onClose={() => setIsVitalsModalOpen(false)} onSave={(v) => { onUpdateVitals(v); showSuccess(); }} />}
+      {isQuickLogOpen && <QuickLogSuggestion onClose={() => setIsQuickLogOpen(false)} onLogOther={handleLogOtherFromQuickLog} />}
+      {selectedMealDetails && <MealDetailModal meal={selectedMealDetails} onClose={() => setSelectedMealDetails(null)} onUpdateMealType={onUpdateMealType} />}
+      {isCalendarModalOpen && <CalendarModal selectedDate={currentDate} onClose={() => setIsCalendarModalOpen(false)} onDateSelect={setCurrentDate} />}
+      {isLogStepsModalOpen && <LogStepsModal currentSteps={dailySteps.steps} onClose={() => setIsLogStepsModalOpen(false)} onSave={(steps) => { onLogSteps(steps); showSuccess(); }} />}
+      {isLogSleepModalOpen && <LogSleepModal currentHours={sleepHours} onClose={() => setIsLogSleepModalOpen(false)} onSave={(hours) => { onSleepHoursChange(hours); showSuccess(); }} />}
+      {isSyncModalOpen && <SyncDataModal currentSteps={dailySteps.steps} currentSleep={sleepHours} onClose={() => setIsSyncModalOpen(false)} onSave={(data) => { onSyncData(data); showSuccess(); }} />}
+    </div>
   );
 };
 

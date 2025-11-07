@@ -1,10 +1,10 @@
+
 import React from 'react';
-import type { LeaderboardUser, UserProfile } from '../types';
+import type { LeaderboardUser, UserProfile, DailySteps } from '../types';
 import { TrophyIcon } from './icons/TrophyIcon';
 
 const challenge = {
   title: 'Walk 50,000 Steps',
-  userProgress: 34567,
   goal: 50000,
 };
 
@@ -18,10 +18,11 @@ const staticLeaderboardData: Omit<LeaderboardUser, 'isCurrentUser'>[] = [
 
 interface CommunityProps {
   profile: UserProfile;
+  dailySteps: DailySteps;
 }
 
-const WeeklyChallengeCard: React.FC = () => {
-  const progressPercentage = (challenge.userProgress / challenge.goal) * 100;
+const WeeklyChallengeCard: React.FC<{ userProgress: number }> = ({ userProgress }) => {
+  const progressPercentage = (userProgress / challenge.goal) * 100;
   return (
     <div className="bg-card-light dark:bg-card-dark p-6 rounded-2xl shadow-lg animate-fade-in">
       <h2 className="text-sm font-semibold text-text-secondary-light dark:text-text-secondary-dark">This Week's Challenge</h2>
@@ -30,7 +31,7 @@ const WeeklyChallengeCard: React.FC = () => {
         <div className="bg-accent h-2.5 rounded-full" style={{ width: `${progressPercentage}%` }}></div>
       </div>
       <div className="flex justify-between text-sm">
-        <span className="font-semibold text-text-primary-light dark:text-text-primary-dark">{challenge.userProgress.toLocaleString()}</span>
+        <span className="font-semibold text-text-primary-light dark:text-text-primary-dark">{userProgress.toLocaleString()}</span>
         <span className="text-text-secondary-light dark:text-text-secondary-dark">{challenge.goal.toLocaleString()} steps</span>
       </div>
     </div>
@@ -64,8 +65,8 @@ const Leaderboard: React.FC<{ data: LeaderboardUser[] }> = ({ data }) => {
   );
 }
 
-const Community: React.FC<CommunityProps> = ({ profile }) => {
-  const userProgress = 34567; // This is a placeholder for now
+const Community: React.FC<CommunityProps> = ({ profile, dailySteps }) => {
+  const userProgress = dailySteps.steps;
 
   const leaderboardData: LeaderboardUser[] = [
     ...staticLeaderboardData.map(u => ({...u, isCurrentUser: false})),
@@ -80,7 +81,7 @@ const Community: React.FC<CommunityProps> = ({ profile }) => {
         <p className="text-text-secondary-light dark:text-text-secondary-dark">Join challenges and climb the ranks!</p>
       </header>
 
-      <WeeklyChallengeCard />
+      <WeeklyChallengeCard userProgress={userProgress} />
       <Leaderboard data={leaderboardData} />
     </div>
   );

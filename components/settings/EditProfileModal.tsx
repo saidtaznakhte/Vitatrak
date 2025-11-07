@@ -3,6 +3,7 @@ import type { UserProfile } from '../../types';
 import { XMarkIcon } from '../icons/XMarkIcon';
 import { CameraIcon } from '../icons/CameraIcon';
 import { blobToBase64 } from '../utils/imageUtils';
+import { convertHeightToCm, convertHeightForDisplay } from '../../utils/units';
 
 interface EditProfileModalProps {
   profile: UserProfile;
@@ -14,6 +15,13 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({ profile, onClose, o
   const [name, setName] = useState(profile.name);
   const [age, setAge] = useState(profile.age.toString());
   const [avatar, setAvatar] = useState(profile.avatarUrl);
+  
+  const unitSystem = profile.unitSystem || 'metric';
+  const displayHeight = convertHeightForDisplay(profile.height || 0, unitSystem);
+  
+  const [heightPrimary, setHeightPrimary] = useState((displayHeight.meters ?? displayHeight.feet ?? 0).toString());
+  const [heightSecondary, setHeightSecondary] = useState((displayHeight.inches ?? '').toString());
+  
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -26,16 +34,37 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({ profile, onClose, o
 
   const handleSave = () => {
     const newAge = parseInt(age, 10);
+    
+    let heightInCm = 0;
+    if (unitSystem === 'imperial') {
+        heightInCm = convertHeightToCm({
+            feet: parseInt(heightPrimary, 10) || 0,
+            inches: parseInt(heightSecondary, 10) || 0
+        }, 'imperial');
+    } else {
+        heightInCm = convertHeightToCm({
+            meters: parseFloat(heightPrimary) || 0
+        }, 'metric');
+    }
+
     if (name.trim() && !isNaN(newAge) && newAge > 0) {
       onSave({
+        ...profile,
         name: name.trim(),
         age: newAge,
         avatarUrl: avatar,
+        height: heightInCm,
       });
     }
   };
   
   const isSaveDisabled = !name.trim() || !age.trim() || parseInt(age, 10) <= 0;
+
+  const handleHeightInputChange = (setter: React.Dispatch<React.SetStateAction<string>>, value: string) => {
+    if (value === '' || /^[0-9]*\.?[0-9]*$/.test(value)) {
+      setter(value);
+    }
+  };
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" aria-modal="true" role="dialog" onClick={onClose}>
@@ -92,6 +121,33 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({ profile, onClose, o
                 onChange={(e) => setAge(e.target.value)}
                 className="w-full p-3 rounded-lg bg-gray-100 dark:bg-card-dark border border-gray-200 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-accent"
             />
+          </div>
+           <div>
+            <label className="block text-sm font-medium text-text-secondary-light dark:text-text-secondary-dark mb-1">Height</label>
+            {unitSystem === 'metric' ? (
+                 <div className="relative">
+                    <input
+                        id="height"
+                        type="text"
+                        inputMode="decimal"
+                        value={heightPrimary}
+                        onChange={(e) => handleHeightInputChange(setHeightPrimary, e.target.value)}
+                        className="w-full p-3 rounded-lg bg-gray-100 dark:bg-card-dark border border-gray-200 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-accent"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary-light dark:text-text-secondary-dark">m</span>
+                </div>
+            ) : (
+                <div className="flex space-x-2">
+                    <div className="relative w-1/2">
+                        <input id="height_ft" type="number" value={heightPrimary} onChange={(e) => handleHeightInputChange(setHeightPrimary, e.target.value)} className="w-full p-3 rounded-lg bg-gray-100 dark:bg-card-dark border border-gray-200 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-accent" />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary-light dark:text-text-secondary-dark">ft</span>
+                    </div>
+                    <div className="relative w-1/2">
+                         <input id="height_in" type="number" value={heightSecondary} onChange={(e) => handleHeightInputChange(setHeightSecondary, e.target.value)} className="w-full p-3 rounded-lg bg-gray-100 dark:bg-card-dark border border-gray-200 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-accent" />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary-light dark:text-text-secondary-dark">in</span>
+                    </div>
+                </div>
+            )}
           </div>
         </div>
         

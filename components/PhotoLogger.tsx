@@ -55,7 +55,7 @@ const PhotoLogger: React.FC<PhotoLoggerProps> = ({ onAddMeal }) => {
 
     try {
       const base64Data = await blobToBase64(imageFile);
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       
       const imagePart = {
         inlineData: {

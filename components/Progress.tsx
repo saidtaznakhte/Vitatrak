@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useContext, useMemo } from 'react';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip } from 'recharts';
 import { FlameIcon } from './icons/FlameIcon';
@@ -6,18 +7,19 @@ import Achievements from './Achievements';
 import { Streak7Icon } from './icons/Streak7Icon';
 import { WeightLossIcon } from './icons/WeightLossIcon';
 import { PerfectDayIcon } from './icons/PerfectDayIcon';
-import type { Achievement, WeightEntry, UserProfile, ChartDataPoint } from '../types';
+import type { Achievement, WeightEntry, UserProfile, ChartDataPoint, UnitSystem } from '../types';
 import { CelebrationContext } from '../contexts/CelebrationContext';
 import { ShareIcon } from './icons/ShareIcon';
 import ShareModal from './ShareModal';
 import LogWeightModal from './LogWeightModal';
 import { useFeedback } from '../contexts/FeedbackContext';
 import { triggerHapticFeedback } from './utils/haptics';
+import { convertWeightForDisplay, getWeightUnit } from '../utils/units';
 
 const periods = ['90 Days', '6 Months', '1 Year', 'All Time'];
 const weekDays = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
-const processDataForChart = (data: WeightEntry[]): ChartDataPoint[] => {
+const processDataForChart = (data: WeightEntry[], unitSystem: UnitSystem): ChartDataPoint[] => {
   if (!data || data.length === 0) return [];
   
   const monthlyData: { [key: string]: { weights: number[], lastDate: Date } } = {};
@@ -40,8 +42,9 @@ const processDataForChart = (data: WeightEntry[]): ChartDataPoint[] => {
 
   return sortedKeys.map(key => {
     const monthEntries = monthlyData[key];
-    const lastWeight = data.find(d => new Date(d.date).getTime() === monthEntries.lastDate.getTime())?.weight || monthEntries.weights[monthEntries.weights.length-1];
-    return { name: key.split(' ')[0], weight: lastWeight };
+    // Stored weight is in kg
+    const lastWeightKg = data.find(d => new Date(d.date).getTime() === monthEntries.lastDate.getTime())?.weight || monthEntries.weights[monthEntries.weights.length-1];
+    return { name: key.split(' ')[0], weight: convertWeightForDisplay(lastWeightKg, unitSystem) };
   });
 };
 
@@ -68,31 +71,26 @@ const calculateTrendLine = (data: { name: string; weight: number }[]) => {
   }));
 };
 
-const CustomTooltip = ({ active, payload }: any) => {
+const CustomTooltip = ({ active, payload, unit }: any) => {
   if (active && payload && payload.length) {
     return (
       <div className="bg-white/80 dark:bg-gray-700/80 backdrop-blur-sm p-2 rounded-lg shadow-lg border border-gray-200 dark:border-gray-600">
-        <p className="text-sm text-text-primary-light dark:text-text-primary-dark">{`${payload[0].value} lb`}</p>
+        <p className="text-sm text-text-primary-light dark:text-text-primary-dark">{`${payload[0].value} ${unit}`}</p>
       </div>
     );
   }
   return null;
 };
 
-const achievementsData: Achievement[] = [
-  { id: 1, title: '7-Day Streak', description: 'Log meals for 7 days in a row.', unlocked: true, icon: <Streak7Icon className="w-full h-full" /> },
-  { id: 2, title: 'Goal Getter', description: 'Lose your first 5 lbs.', unlocked: true, icon: <WeightLossIcon className="w-full h-full" /> },
-  { id: 3, title: 'Perfect Day', description: 'Hit all macro targets in a day.', unlocked: false, icon: <PerfectDayIcon className="w-full h-full" /> },
-];
-
 interface ProgressProps {
+  streak: number;
   weightData: WeightEntry[];
   goalWeight: number;
   onLogWeight: (newWeight: number) => void;
   profile: UserProfile;
 }
 
-const Progress: React.FC<ProgressProps> = ({ weightData, goalWeight, onLogWeight, profile }) => {
+const Progress: React.FC<ProgressProps> = ({ streak, weightData, goalWeight, onLogWeight, profile }) => {
   const [activePeriod, setActivePeriod] = useState('1 Year');
   const [isLogWeightModalOpen, setIsLogWeightModalOpen] = useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
@@ -100,13 +98,25 @@ const Progress: React.FC<ProgressProps> = ({ weightData, goalWeight, onLogWeight
   const { triggerCelebration } = useContext(CelebrationContext);
   const { showSuccess } = useFeedback();
   
-  const chartData = useMemo(() => processDataForChart(weightData), [weightData]);
+  const unitSystem = profile.unitSystem || 'metric';
+  const weightUnit = getWeightUnit(unitSystem);
+  const chartData = useMemo(() => processDataForChart(weightData, unitSystem), [weightData, unitSystem]);
   const dataWithTrend = useMemo(() => calculateTrendLine(chartData), [chartData]);
+  
+  const achievementsData: Achievement[] = [
+    { id: 1, title: '7-Day Streak', description: 'Log in for 7 days in a row.', unlocked: streak >= 7, icon: <Streak7Icon className="w-full h-full" /> },
+    { id: 2, title: 'Goal Getter', description: 'Lose your first 5 lbs.', unlocked: true, icon: <WeightLossIcon className="w-full h-full" /> },
+    { id: 3, title: 'Perfect Day', description: 'Hit all macro targets in a day.', unlocked: false, icon: <PerfectDayIcon className="w-full h-full" /> },
+  ];
 
-  const streak = 7;
-  const currentWeight = weightData.length > 0 ? weightData[weightData.length - 1].weight : 0;
-  const initialWeight = weightData.length > 0 ? weightData[0].weight : 0;
-  const isGoalReached = currentWeight <= goalWeight;
+  const currentWeightKg = weightData.length > 0 ? weightData[weightData.length - 1].weight : 0;
+  const initialWeightKg = weightData.length > 0 ? weightData[0].weight : 0;
+  const isGoalReached = currentWeightKg > 0 && goalWeight > 0 && currentWeightKg <= goalWeight;
+
+  const currentWeightDisplay = convertWeightForDisplay(currentWeightKg, unitSystem);
+  const goalWeightDisplay = convertWeightForDisplay(goalWeight, unitSystem);
+  const initialWeightDisplay = convertWeightForDisplay(initialWeightKg, unitSystem);
+  const weightChangeDisplay = currentWeightDisplay - initialWeightDisplay;
 
   const GoalReachedDot: React.FC<any> = (props) => {
     const { cx, cy, index } = props;
@@ -122,19 +132,14 @@ const Progress: React.FC<ProgressProps> = ({ weightData, goalWeight, onLogWeight
   };
 
   useEffect(() => {
-    // Simulate checking for a milestone and triggering a celebration
     const hasCelebrated = sessionStorage.getItem('hasCelebratedStreak');
-    if (!hasCelebrated) {
-      // Assuming '7' is the current streak for demonstration
-      const currentStreak = 7; 
-      if (currentStreak === 7) {
+    if (!hasCelebrated && streak === 7) {
         setTimeout(() => {
           triggerCelebration();
           sessionStorage.setItem('hasCelebratedStreak', 'true');
         }, 500);
-      }
     }
-  }, [triggerCelebration]);
+  }, [streak, triggerCelebration]);
 
   const handleLogWeight = (newWeight: number) => {
     onLogWeight(newWeight);
@@ -179,10 +184,10 @@ const Progress: React.FC<ProgressProps> = ({ weightData, goalWeight, onLogWeight
             <div>
               <h2 className="font-semibold text-text-secondary-light dark:text-text-secondary-dark text-sm">My Weight</h2>
               <div className="flex items-baseline space-x-2 mt-2">
-                <span className="text-3xl font-bold text-text-primary-light dark:text-text-primary-dark">{currentWeight}</span>
-                <span className="text-sm font-medium text-text-secondary-light dark:text-text-secondary-dark">lb</span>
+                <span className="text-3xl font-bold text-text-primary-light dark:text-text-primary-dark">{currentWeightDisplay}</span>
+                <span className="text-sm font-medium text-text-secondary-light dark:text-text-secondary-dark">{weightUnit}</span>
               </div>
-              <p className="text-xs text-text-secondary-light dark:text-text-secondary-dark">Goal: {goalWeight} lb</p>
+              <p className="text-xs text-text-secondary-light dark:text-text-secondary-dark">Goal: {goalWeightDisplay} {weightUnit}</p>
             </div>
             <button onClick={() => setIsLogWeightModalOpen(true)} className="flex items-center justify-between w-full text-left mt-4 text-sm font-semibold text-accent hover:text-accent/80 transition-colors">
               <span>Log Weight</span>
@@ -199,7 +204,7 @@ const Progress: React.FC<ProgressProps> = ({ weightData, goalWeight, onLogWeight
             </div>
             <div className="flex justify-between mt-4">
               {weekDays.map((day, index) => (
-                <span key={index} className={`flex items-center justify-center w-6 h-6 text-xs font-bold rounded-full ${index < 7 ? 'bg-accent text-white' : 'bg-gray-200 dark:bg-card-dark text-text-secondary-dark'}`}>
+                <span key={index} className={`flex items-center justify-center w-6 h-6 text-xs font-bold rounded-full ${index < streak ? 'bg-accent text-white' : 'bg-gray-200 dark:bg-card-dark text-text-secondary-dark'}`}>
                   {day}
                 </span>
               ))}
@@ -232,7 +237,7 @@ const Progress: React.FC<ProgressProps> = ({ weightData, goalWeight, onLogWeight
               <LineChart data={dataWithTrend} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
                 <XAxis dataKey="name" stroke="var(--color-text-secondary-dark)" fontSize={12} tickLine={false} axisLine={false} />
                 <YAxis stroke="var(--color-text-secondary-dark)" fontSize={12} tickLine={false} axisLine={false} domain={['dataMin - 5', 'dataMax + 5']} />
-                <Tooltip content={<CustomTooltip />} cursor={{ stroke: 'rgba(0, 169, 157, 0.2)', strokeWidth: 2 }} />
+                <Tooltip content={<CustomTooltip unit={weightUnit} />} cursor={{ stroke: 'rgba(0, 169, 157, 0.2)', strokeWidth: 2 }} />
                 <Line type="monotone" dataKey="weight" stroke="#00A99D" strokeWidth={3} dot={false} activeDot={{ r: 6, stroke: '#fff', strokeWidth: 2, fill: '#00A99D' }} />
                 <Line type="linear" dataKey="trend" strokeOpacity={0.7} stroke="#8A8A8E" strokeWidth={2} strokeDasharray="5 5" dot={<GoalReachedDot />} />
               </LineChart>
@@ -251,16 +256,17 @@ const Progress: React.FC<ProgressProps> = ({ weightData, goalWeight, onLogWeight
               userName={profile.name}
               avatarUrl={profile.avatarUrl}
               streak={streak}
-              currentWeight={currentWeight}
-              weightChange={currentWeight - initialWeight}
+              currentWeight={currentWeightDisplay}
+              weightChange={weightChangeDisplay}
               weightData={chartData}
           />
       )}
       {isLogWeightModalOpen && (
         <LogWeightModal
-            currentWeight={currentWeight}
+            currentWeight={currentWeightKg}
             onClose={() => setIsLogWeightModalOpen(false)}
             onSave={handleLogWeight}
+            unitSystem={unitSystem}
         />
       )}
     </>

@@ -2,11 +2,11 @@ import React, { createContext, useState, useEffect, useContext, useCallback } fr
 import type { Language } from '../types';
 
 // Import translations
-import en from '/translations/en.json';
-import es from '/translations/es.json';
-import fr from '/translations/fr.json';
-import de from '/translations/de.json';
-import ar from '/translations/ar.json';
+import en from '../translations/en.json';
+import es from '../translations/es.json';
+import fr from '../translations/fr.json';
+import de from '../translations/de.json';
+import ar from '../translations/ar.json';
 
 const translations = { en, es, fr, de, ar };
 

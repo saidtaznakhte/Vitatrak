@@ -3,8 +3,8 @@ import React from 'react';
 export type ActiveView = 'dashboard' | 'progress' | 'plan' | 'community' | 'settings';
 export type Theme = 'light' | 'dark';
 export type Macro = 'Calories' | 'Protein' | 'Carbs' | 'Fats';
-
-// Fix: Add Language type definition.
+export type UnitSystem = 'metric' | 'imperial';
+// FIX: Add Language type to be used for internationalization.
 export type Language = 'en' | 'es' | 'fr' | 'de' | 'ar';
 
 export interface Achievement {
@@ -62,13 +62,15 @@ export interface MacroGoals {
 export interface WeightEntry {
   id: number;
   date: string; // ISO string
-  weight: number;
+  weight: number; // Always stored in kg
 }
 
 export interface UserProfile {
   name: string;
   age: number;
   avatarUrl?: string;
+  height?: number; // in cm
+  unitSystem?: UnitSystem;
 }
 
 export type ChartDataPoint = {

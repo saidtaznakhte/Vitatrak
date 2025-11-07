@@ -1,15 +1,19 @@
 import React from 'react';
-import type { WeightEntry } from '../../types';
+import type { UserProfile, WeightEntry } from '../../types';
 import { XMarkIcon } from '../icons/XMarkIcon';
 import { TrashIcon } from '../icons/TrashIcon';
+import { convertWeightForDisplay, getWeightUnit } from '../../utils/units';
 
 interface WeightHistoryModalProps {
   history: WeightEntry[];
   onClose: () => void;
   onDelete: (id: number) => void;
+  profile: UserProfile;
 }
 
-const WeightHistoryModal: React.FC<WeightHistoryModalProps> = ({ history, onClose, onDelete }) => {
+const WeightHistoryModal: React.FC<WeightHistoryModalProps> = ({ history, onClose, onDelete, profile }) => {
+  const unitSystem = profile.unitSystem || 'metric';
+  const weightUnit = getWeightUnit(unitSystem);
   const sortedHistory = [...history].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   
   return (
@@ -34,7 +38,7 @@ const WeightHistoryModal: React.FC<WeightHistoryModalProps> = ({ history, onClos
                   {new Date(entry.date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
                 </span>
                 <div className="flex items-center space-x-3">
-                  <span className="font-bold text-text-primary-light dark:text-text-primary-dark">{entry.weight} lbs</span>
+                  <span className="font-bold text-text-primary-light dark:text-text-primary-dark">{convertWeightForDisplay(entry.weight, unitSystem)} {weightUnit}</span>
                   <button onClick={() => onDelete(entry.id)} className="p-1 text-text-secondary-light dark:text-text-secondary-dark hover:text-red-500 dark:hover:text-red-500 transition-colors" aria-label="Delete weight entry">
                     <TrashIcon className="w-5 h-5" />
                   </button>

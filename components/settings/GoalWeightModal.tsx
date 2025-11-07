@@ -1,16 +1,21 @@
 import React, { useState } from 'react';
 import { XMarkIcon } from '../icons/XMarkIcon';
+import type { UserProfile } from '../../types';
+import { convertWeightForDisplay, getWeightUnit } from '../../utils/units';
 
 interface GoalWeightModalProps {
-  currentWeight: number;
-  goalWeight: number;
+  currentWeight: number; // in kg
+  goalWeight: number; // in kg
   onClose: () => void;
   onSave: (newCurrentWeight: number, newGoalWeight: number) => void;
+  profile: UserProfile;
 }
 
-const GoalWeightModal: React.FC<GoalWeightModalProps> = ({ currentWeight, goalWeight, onClose, onSave }) => {
-  const [current, setCurrent] = useState(currentWeight.toString());
-  const [goal, setGoal] = useState(goalWeight.toString());
+const GoalWeightModal: React.FC<GoalWeightModalProps> = ({ currentWeight, goalWeight, onClose, onSave, profile }) => {
+  const unitSystem = profile.unitSystem || 'metric';
+  const weightUnit = getWeightUnit(unitSystem);
+  const [current, setCurrent] = useState(convertWeightForDisplay(currentWeight, unitSystem).toString());
+  const [goal, setGoal] = useState(convertWeightForDisplay(goalWeight, unitSystem).toString());
 
   const handleSave = () => {
     const newCurrent = parseFloat(current);
@@ -37,7 +42,7 @@ const GoalWeightModal: React.FC<GoalWeightModalProps> = ({ currentWeight, goalWe
                 onChange={(e) => onChange(e.target.value)}
                 className="w-full p-3 rounded-lg bg-gray-100 dark:bg-card-dark border border-gray-200 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-accent"
             />
-            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary-light dark:text-text-secondary-dark">lbs</span>
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary-light dark:text-text-secondary-dark">{weightUnit}</span>
         </div>
     </div>
   );

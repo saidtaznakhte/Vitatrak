@@ -1,15 +1,19 @@
 import React, { useState } from 'react';
 import { XMarkIcon } from './icons/XMarkIcon';
 import { triggerHapticFeedback } from './utils/haptics';
+import { convertWeightForDisplay, getWeightUnit } from '../utils/units';
+import type { UnitSystem } from '../types';
 
 interface LogWeightModalProps {
-  currentWeight: number;
+  currentWeight: number; // in kg
   onClose: () => void;
   onSave: (newWeight: number) => void;
+  unitSystem: UnitSystem;
 }
 
-const LogWeightModal: React.FC<LogWeightModalProps> = ({ currentWeight, onClose, onSave }) => {
-  const [weight, setWeight] = useState(currentWeight.toString());
+const LogWeightModal: React.FC<LogWeightModalProps> = ({ currentWeight, onClose, onSave, unitSystem }) => {
+  const [weight, setWeight] = useState(convertWeightForDisplay(currentWeight, unitSystem).toString());
+  const weightUnit = getWeightUnit(unitSystem);
 
   const handleSave = () => {
     const newWeight = parseFloat(weight);
@@ -27,9 +31,10 @@ const LogWeightModal: React.FC<LogWeightModalProps> = ({ currentWeight, onClose,
   };
   
   const incrementWeight = (amount: number) => {
+    const increment = unitSystem === 'imperial' ? amount * 2 : amount;
     setWeight(prev => {
         const current = parseFloat(prev) || 0;
-        const newValue = (current + amount);
+        const newValue = (current + increment);
         return newValue > 0 ? newValue.toFixed(1) : "0";
     });
     triggerHapticFeedback(30);
@@ -64,7 +69,7 @@ const LogWeightModal: React.FC<LogWeightModalProps> = ({ currentWeight, onClose,
                     autoFocus
                     className="w-full bg-transparent text-center text-6xl font-extrabold text-text-primary-light dark:text-text-primary-dark focus:outline-none"
                 />
-                <span className="absolute -bottom-5 left-0 right-0 text-lg font-medium text-text-secondary-light dark:text-text-secondary-dark">lbs</span>
+                <span className="absolute -bottom-5 left-0 right-0 text-lg font-medium text-text-secondary-light dark:text-text-secondary-dark">{weightUnit}</span>
             </div>
              <button onClick={() => incrementWeight(0.5)} className="w-12 h-12 text-3xl font-light rounded-full bg-gray-200 dark:bg-card-dark/80 text-text-secondary-dark hover:bg-gray-300 dark:hover:bg-white/10 transition-colors">+</button>
         </div>

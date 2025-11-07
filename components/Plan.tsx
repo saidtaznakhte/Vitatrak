@@ -25,14 +25,11 @@ const Plan: React.FC = () => {
       setIsLoading(true);
       setError(null);
       try {
-        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
+        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+        const prompt = `Generate a culturally relevant one-day meal plan (Breakfast, Lunch, Dinner, Snack) for ${locationPrompt} on a ${currentDate.toLocaleDateString('en-US', { weekday: 'long' })}. The total calories should be around 2000. For each meal, provide the name, estimated calories, protein, carbs, and fats. Return the response as a JSON array of objects, where each object has 'name', 'calories', 'mealType', 'protein', 'carbs', and 'fats'.`;
         const response = await ai.models.generateContent({
             model: 'gemini-2.5-flash',
-            contents: {
-                parts: [{
-                    text: `Generate a culturally relevant one-day meal plan (Breakfast, Lunch, Dinner, Snack) for ${locationPrompt} on a ${currentDate.toLocaleDateString('en-US', { weekday: 'long' })}. The total calories should be around 2000. For each meal, provide the name, estimated calories, protein, carbs, and fats. Return the response as a JSON array of objects, where each object has 'name', 'calories', 'mealType', 'protein', 'carbs', and 'fats'.`
-                }]
-            },
+            contents: prompt,
             config: {
                 responseMimeType: "application/json",
                 responseSchema: {

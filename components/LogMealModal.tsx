@@ -48,15 +48,13 @@ const LogMealModal: React.FC<LogMealModalProps> = ({ mealType, onClose, onAddMea
       setSearchError(null);
       setSearchResults([]);
       try {
-        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
+        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
         
+        const prompt = `Analyze the food query in English or Arabic: '${query}'. Provide a list of common variations and serving sizes with their nutritional information (calories, protein, carbs, fats). Return a JSON array of objects, where each object has 'name', 'calories', 'protein', 'carbs', and 'fats'. The 'name' should be in the same language as the query. Provide up to 5 results. If you can't find the food, return an empty array.`;
+
         const response = await ai.models.generateContent({
           model: 'gemini-2.5-flash',
-          contents: {
-            parts: [{
-              text: `Analyze the food query in English or Arabic: '${query}'. Provide a list of common variations and serving sizes with their nutritional information (calories, protein, carbs, fats). Return a JSON array of objects, where each object has 'name', 'calories', 'protein', 'carbs', and 'fats'. The 'name' should be in the same language as the query. Provide up to 5 results. If you can't find the food, return an empty array.`
-            }]
-          },
+          contents: prompt,
           config: {
             responseMimeType: "application/json",
             responseSchema: {

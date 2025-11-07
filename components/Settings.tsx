@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import type { Theme, MacroGoals, WeightEntry, UserProfile } from '../types';
 import ProfileHeader from './settings/ProfileHeader';
@@ -10,6 +11,7 @@ import { useFeedback } from '../contexts/FeedbackContext';
 import GoalWeightModal from './settings/GoalWeightModal';
 import WeightHistoryModal from './settings/WeightHistoryModal';
 import EditProfileModal from './settings/EditProfileModal';
+import UnitsModal from './settings/UnitsModal';
 
 interface SettingsProps {
   currentTheme: Theme;
@@ -32,6 +34,7 @@ const Settings: React.FC<SettingsProps> = ({
   const [isGoalWeightModalOpen, setIsGoalWeightModalOpen] = useState(false);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [isEditProfileModalOpen, setIsEditProfileModalOpen] = useState(false);
+  const [isUnitsModalOpen, setIsUnitsModalOpen] = useState(false);
   const { showSuccess } = useFeedback();
 
   const handleSaveMacros = (newGoals: MacroGoals) => {
@@ -68,6 +71,8 @@ const Settings: React.FC<SettingsProps> = ({
         <ProfileHeader 
           name={profile.name} 
           age={profile.age} 
+          height={profile.height}
+          unitSystem={profile.unitSystem}
           avatarUrl={profile.avatarUrl}
           onClick={() => setIsEditProfileModalOpen(true)}
         />
@@ -78,7 +83,6 @@ const Settings: React.FC<SettingsProps> = ({
           <SettingsLink href="#" title="Adjust macronutrients" onClick={() => setIsMacrosModalOpen(true)} />
           <SettingsLink href="#" title="Goal & current weight" onClick={() => setIsGoalWeightModalOpen(true)}/>
           <SettingsLink href="#" title="Weight history" onClick={() => setIsHistoryModalOpen(true)} />
-          <SettingsLink href="#" title="Language" trailingText="English" />
         </SettingsSection>
         
          <SettingsSection title="Integrations">
@@ -87,6 +91,7 @@ const Settings: React.FC<SettingsProps> = ({
         </SettingsSection>
 
         <SettingsSection title="Preferences">
+          <SettingsLink href="#" title="Units" onClick={() => setIsUnitsModalOpen(true)} />
           <SettingsLink href="#" title="Appearance" subtitle={`Choose light, dark, or system appearance.`} trailingText={currentTheme === 'light' ? 'Light' : 'Dark'} onClick={toggleTheme}/>
           <SettingsToggle title="Add Burned Calories" initialValue={true} />
           <SettingsToggle title="Rollover Calories" initialValue={true} />
@@ -133,6 +138,7 @@ const Settings: React.FC<SettingsProps> = ({
           goalWeight={goalWeight}
           onClose={() => setIsGoalWeightModalOpen(false)}
           onSave={handleSaveWeightAndGoal}
+          profile={profile}
         />
       )}
 
@@ -141,6 +147,7 @@ const Settings: React.FC<SettingsProps> = ({
           history={weightData}
           onClose={() => setIsHistoryModalOpen(false)}
           onDelete={handleDeleteWeight}
+          profile={profile}
         />
       )}
 
@@ -148,6 +155,13 @@ const Settings: React.FC<SettingsProps> = ({
         <EditProfileModal
           profile={profile}
           onClose={() => setIsEditProfileModalOpen(false)}
+          onSave={handleSaveProfile}
+        />
+      )}
+      {isUnitsModalOpen && (
+        <UnitsModal
+          profile={profile}
+          onClose={() => setIsUnitsModalOpen(false)}
           onSave={handleSaveProfile}
         />
       )}

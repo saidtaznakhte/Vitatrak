@@ -13,6 +13,7 @@ import Confetti from './components/celebrations/Confetti';
 import { FeedbackProvider } from './contexts/FeedbackContext';
 import SuccessOverlay from './components/SuccessOverlay';
 import { haversineDistance } from './utils/geolocation';
+import { convertWeightToKg } from './utils/units';
 
 const initialMacroGoals: MacroGoals = {
   'Calories': { goal: 2000, unit: '' },
@@ -29,6 +30,8 @@ const initialProfile: UserProfile = {
   name: 'New User',
   age: 25,
   avatarUrl: `https://avatar.iran.liara.run/public/boy?username=newuser`,
+  height: 175,
+  unitSystem: 'metric',
 };
 
 
@@ -39,9 +42,10 @@ const App: React.FC = () => {
   const [macroGoals, setMacroGoals] = useState<MacroGoals>(initialMacroGoals);
   const [weightData, setWeightData] = useState<WeightEntry[]>(initialWeightData);
   const [loggedMeals, setLoggedMeals] = useState<LoggedMeal[]>(initialLoggedMeals);
-  const [goalWeight, setGoalWeight] = useState(114);
+  const [goalWeight, setGoalWeight] = useState(70); // Store in kg
   const [profile, setProfile] = useState<UserProfile>(initialProfile);
   const [dailySteps, setDailySteps] = useState<DailySteps>({ date: new Date().toISOString().split('T')[0], steps: 0 });
+  const [streak, setStreak] = useState(1);
   
   // New wellness states
   const [waterIntake, setWaterIntake] = useState(0);
@@ -82,11 +86,16 @@ const App: React.FC = () => {
     const savedProfile = localStorage.getItem('userProfile');
     if (savedProfile) setProfile(JSON.parse(savedProfile));
     
-    // Daily reset logic for steps, water, sleep
-    const today = new Date().toISOString().split('T')[0];
+    // Streak and Daily reset logic
+    const today = new Date();
+    const todayString = today.toISOString().split('T')[0];
     const lastLoginDate = localStorage.getItem('lastLoginDate');
+    
+    if (lastLoginDate === todayString) {
+        // Same day login, just load data
+        const savedStreak = parseInt(localStorage.getItem('streak') || '1', 10);
+        setStreak(savedStreak);
 
-    if (lastLoginDate === today) {
         const savedStepsJSON = localStorage.getItem('dailySteps');
         if (savedStepsJSON) setDailySteps(JSON.parse(savedStepsJSON));
 
@@ -100,8 +109,27 @@ const App: React.FC = () => {
         if (savedActiveCalories) setActiveCalories(JSON.parse(savedActiveCalories));
 
     } else {
-        localStorage.setItem('lastLoginDate', today);
-        setDailySteps({ date: today, steps: 0 });
+        // New day login
+        const yesterday = new Date(today);
+        yesterday.setDate(today.getDate() - 1);
+        const yesterdayString = yesterday.toISOString().split('T')[0];
+        
+        const savedStreak = parseInt(localStorage.getItem('streak') || '0', 10);
+
+        if (lastLoginDate === yesterdayString) {
+            // It was yesterday, increment streak
+            const newStreak = savedStreak + 1;
+            setStreak(newStreak);
+            localStorage.setItem('streak', newStreak.toString());
+        } else {
+            // Missed a day or more, reset streak
+            setStreak(1);
+            localStorage.setItem('streak', '1');
+        }
+
+        // This is a new day, so reset daily values
+        localStorage.setItem('lastLoginDate', todayString);
+        setDailySteps({ date: todayString, steps: 0 });
         setWaterIntake(0);
         setSleepHours(0);
         setActiveCalories(0);
@@ -163,7 +191,8 @@ const App: React.FC = () => {
     ));
   };
   
-  const handleLogWeight = (newWeight: number) => {
+  const handleLogWeight = (newWeightInDisplayUnits: number) => {
+    const weightInKg = convertWeightToKg(newWeightInDisplayUnits, profile.unitSystem || 'metric');
     const today = new Date();
     const todayDateString = today.toISOString().split('T')[0];
 
@@ -173,9 +202,9 @@ const App: React.FC = () => {
 
     if (existingEntryIndex > -1) {
       updatedData = [...weightData];
-      updatedData[existingEntryIndex] = { ...updatedData[existingEntryIndex], weight: newWeight };
+      updatedData[existingEntryIndex] = { ...updatedData[existingEntryIndex], weight: weightInKg };
     } else {
-      updatedData = [...weightData, { id: Date.now(), date: today.toISOString(), weight: newWeight }];
+      updatedData = [...weightData, { id: Date.now(), date: today.toISOString(), weight: weightInKg }];
     }
 
     updatedData.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
@@ -189,10 +218,11 @@ const App: React.FC = () => {
     localStorage.setItem('weightData', JSON.stringify(updatedData));
   };
 
-  const handleUpdateWeightAndGoal = (newCurrentWeight: number, newGoalWeight: number) => {
-    handleLogWeight(newCurrentWeight);
-    setGoalWeight(newGoalWeight);
-    localStorage.setItem('goalWeight', JSON.stringify(newGoalWeight));
+  const handleUpdateWeightAndGoal = (newCurrentWeightDisplay: number, newGoalWeightDisplay: number) => {
+    handleLogWeight(newCurrentWeightDisplay);
+    const newGoalInKg = convertWeightToKg(newGoalWeightDisplay, profile.unitSystem || 'metric');
+    setGoalWeight(newGoalInKg);
+    localStorage.setItem('goalWeight', JSON.stringify(newGoalInKg));
   };
   
   const handleUpdateProfile = (newProfile: UserProfile) => {
@@ -209,6 +239,8 @@ const App: React.FC = () => {
       name: profileData.name,
       age: profileData.age,
       avatarUrl: `https://avatar.iran.liara.run/public/boy?username=${encodeURIComponent(profileData.name)}`,
+      height: 175,
+      unitSystem: 'metric',
     };
     handleUpdateProfile(newProfile);
     localStorage.setItem('hasCompletedOnboarding', 'true');
@@ -291,7 +323,7 @@ const App: React.FC = () => {
     lastPositionRef.current = null;
   };
 
-  const currentWeight = weightData.length > 0 ? weightData[weightData.length - 1].weight : 0;
+  const currentWeight = weightData.length > 0 ? weightData[weightData.length - 1].weight : 0; // This is in kg
 
   const renderView = () => {
     switch (activeView) {
@@ -319,9 +351,12 @@ const App: React.FC = () => {
                   isTracking={isTracking}
                   onStartTracking={handleStartTracking}
                   onStopTracking={handleStopTracking}
+                  currentWeight={currentWeight}
+                  goalWeight={goalWeight}
                 />;
       case 'progress':
         return <Progress 
+                  streak={streak}
                   weightData={weightData} 
                   goalWeight={goalWeight} 
                   onLogWeight={handleLogWeight} 
@@ -330,7 +365,7 @@ const App: React.FC = () => {
       case 'plan':
         return <Plan />;
        case 'community':
-        return <Community profile={profile} />;
+        return <Community profile={profile} dailySteps={dailySteps} />;
       case 'settings':
         return <Settings 
                   currentTheme={theme} 
@@ -369,6 +404,8 @@ const App: React.FC = () => {
                   isTracking={isTracking}
                   onStartTracking={handleStartTracking}
                   onStopTracking={handleStopTracking}
+                  currentWeight={currentWeight}
+                  goalWeight={goalWeight}
                 />;
     }
   };
