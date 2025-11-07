@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { PieChart, Pie, Cell, ResponsiveContainer, Legend } from 'recharts';
+// FIX: Import missing components from recharts to render the meal detail chart.
+import { ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import WeeklyCalendar from './WeeklyCalendar';
 import HealthScore from './HealthScore';
 import LogMealModal from './LogMealModal';
@@ -8,8 +9,7 @@ import WaterIntakeCard from './WaterIntakeCard';
 import SleepAndMoodCard from './SleepAndMoodCard';
 import ActivityCard from './ActivityCard';
 import LoggedMealItem from './LoggedMealItem';
-import { triggerHapticFeedback } from './utils/haptics';
-import type { Macro, LoggedMeal, MealNutritionInfo, MacroGoals, UserProfile, DailySteps, Vitals } from '../types';
+import type { MealNutritionInfo, LoggedMeal, MacroGoals, UserProfile, DailySteps, Vitals } from '../types';
 import WaterIntakeModal from './WaterIntakeModal';
 import { AddIcon } from './icons/AddIcon';
 import QuickLogSuggestion from './QuickLogSuggestion';
@@ -22,9 +22,9 @@ import VitalsScanModal from './VitalsScanModal';
 import RecentlyUploaded from './RecentlyUploaded';
 import LogStepsModal from './LogStepsModal';
 import LogSleepModal from './LogSleepModal';
-import { SyncIcon } from './icons/SyncIcon';
 import SyncDataModal from './SyncDataModal';
 import { useFeedback } from '../contexts/FeedbackContext';
+import MealConfirmation from './MealConfirmation';
 
 interface DashboardProps {
   macroGoals: MacroGoals;
@@ -51,6 +51,7 @@ interface DashboardProps {
   onStopTracking: () => void;
   currentWeight: number;
   goalWeight: number;
+  setIsModalOpen: (isOpen: boolean) => void;
 }
 
 const MealDetailModal: React.FC<{ meal: LoggedMeal; onClose: () => void; onUpdateMealType: (id: number, newMealType: 'Breakfast' | 'Lunch' | 'Dinner' | 'Snack') => void; }> = ({ meal, onClose, onUpdateMealType }) => {
@@ -173,7 +174,7 @@ const Dashboard: React.FC<DashboardProps> = (props) => {
     macroGoals, loggedMeals, onLogMeal, onDeleteMeal, onUpdateMealType, profile, dailySteps, onLogSteps,
     waterIntake, onWaterIntakeChange, sleepHours, onSleepHoursChange, mood, onMoodChange, activeCalories, vitals, onUpdateVitals,
     lastSynced, onSyncData, isTracking, onStartTracking, onStopTracking,
-    currentWeight, goalWeight
+    currentWeight, goalWeight, setIsModalOpen
   } = props;
   
   const { showSuccess } = useFeedback();
@@ -189,6 +190,43 @@ const Dashboard: React.FC<DashboardProps> = (props) => {
   const [isLogStepsModalOpen, setIsLogStepsModalOpen] = useState(false);
   const [isLogSleepModalOpen, setIsLogSleepModalOpen] = useState(false);
   const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
+  const [confirmationData, setConfirmationData] = useState<{
+    result: MealNutritionInfo[];
+    imagePreviewUrl: string;
+    mealType: 'Breakfast' | 'Lunch' | 'Dinner' | 'Snack';
+    date: Date;
+    sources: any[];
+  } | null>(null);
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  useEffect(() => {
+    const timerId = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000 * 30); // Update every 30 seconds
+    return () => clearInterval(timerId);
+  }, []);
+
+  const formattedDateAndTime = useMemo(() => {
+    return currentTime.toLocaleString(undefined, {
+      weekday: 'long', 
+      month: 'long', 
+      day: 'numeric', 
+      hour: 'numeric', 
+      minute: 'numeric'
+    });
+  }, [currentTime]);
+
+  useEffect(() => {
+    if (confirmationData) {
+      setIsModalOpen(true);
+    } else {
+      setIsModalOpen(false);
+    }
+    // Cleanup function
+    return () => {
+      setIsModalOpen(false);
+    };
+  }, [confirmationData, setIsModalOpen]);
 
   const isToday = currentDate.toDateString() === new Date().toDateString();
   const selectedDateString = currentDate.toISOString().split('T')[0];
@@ -202,7 +240,6 @@ const Dashboard: React.FC<DashboardProps> = (props) => {
     return acc;
   }, { Calories: 0, Protein: 0, Carbs: 0, Fats: 0 });
 
-  // FIX: Define the 'remaining' object by calculating the difference between macro goals and consumed macros.
   const remaining = {
     Calories: Math.max(0, macroGoals.Calories.goal - consumed.Calories),
     Protein: Math.max(0, macroGoals.Protein.goal - consumed.Protein),
@@ -268,6 +305,25 @@ const Dashboard: React.FC<DashboardProps> = (props) => {
     setIsQuickLogOpen(false);
     handleOpenLogMealModal(mealType);
   };
+
+  const handleAnalysisComplete = (result: MealNutritionInfo[], imageFile: File, sources: any[]) => {
+    setIsLogModalOpen(false); // Close the log modal
+    setConfirmationData({
+      result,
+      imagePreviewUrl: URL.createObjectURL(imageFile),
+      mealType: selectedMealType,
+      date: currentDate,
+      sources,
+    });
+  };
+  
+  const handleConfirmAndLogMeal = (meals: MealNutritionInfo[]) => {
+    if (confirmationData) {
+      onLogMeal(meals, confirmationData.mealType, confirmationData.date);
+      setConfirmationData(null);
+      showSuccess();
+    }
+  };
   
   return (
     <div className="p-4 sm:p-6 space-y-6">
@@ -276,7 +332,7 @@ const Dashboard: React.FC<DashboardProps> = (props) => {
           <h1 className="text-3xl font-bold text-text-primary-light dark:text-text-primary-dark">
             Hello, {profile.name}
           </h1>
-          <p className="text-text-secondary-light dark:text-text-secondary-dark">Here's your health snapshot.</p>
+          <p className="text-text-secondary-light dark:text-text-secondary-dark">{formattedDateAndTime}</p>
         </div>
         <img src={profile.avatarUrl} alt={profile.name} className="w-12 h-12 rounded-full" />
       </header>
@@ -289,28 +345,21 @@ const Dashboard: React.FC<DashboardProps> = (props) => {
         <div className="bg-card-light dark:bg-card-dark p-4 sm:p-6 rounded-2xl shadow-lg">
           <HealthScore score={healthScore} feedback={healthFeedback} />
         </div>
+        
+        <CombinedMacroChart
+          calories={{ consumed: consumed.Calories, goal: macroGoals.Calories.goal }}
+          protein={{ consumed: consumed.Protein, goal: macroGoals.Protein.goal }}
+          carbs={{ consumed: consumed.Carbs, goal: macroGoals.Carbs.goal }}
+          fats={{ consumed: consumed.Fats, goal: macroGoals.Fats.goal }}
+        />
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 h-64">
-            <CombinedMacroChart
-              calories={{ consumed: consumed.Calories, goal: macroGoals.Calories.goal }}
-              protein={{ consumed: consumed.Protein, goal: macroGoals.Protein.goal }}
-              carbs={{ consumed: consumed.Carbs, goal: macroGoals.Carbs.goal }}
-              fats={{ consumed: consumed.Fats, goal: macroGoals.Fats.goal }}
-            />
-          </div>
-          <ActivityCard 
-            steps={dailySteps.steps}
-            stepsGoal={10000}
-            activeCalories={activeCalories}
-            onStepsClick={() => setIsLogStepsModalOpen(true)}
-            isTracking={isTracking}
-            onStartTracking={onStartTracking}
-            onStopTracking={onStopTracking}
-          />
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        <ActivityCard 
+          steps={dailySteps.steps}
+          activeCalories={activeCalories}
+          onStepsClick={() => setIsLogStepsModalOpen(true)}
+        />
+        
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
           <WaterIntakeCard intake={waterIntake} goal={8} onClick={() => setIsWaterModalOpen(true)} />
           <SleepAndMoodCard sleepHours={sleepHours} mood={mood} setMood={onMoodChange} onSleepClick={() => setIsLogSleepModalOpen(true)} />
           <VitalsMonitor onScan={() => setIsVitalsModalOpen(true)} vitals={vitals} />
@@ -337,7 +386,7 @@ const Dashboard: React.FC<DashboardProps> = (props) => {
 
       <DinnerPredictor calories={remaining.Calories} protein={remaining.Protein} />
 
-      {isLogModalOpen && <LogMealModal mealType={selectedMealType} onClose={() => setIsLogModalOpen(false)} onAddMeal={(meals) => { onLogMeal(meals, selectedMealType, currentDate); setIsLogModalOpen(false); showSuccess(); }} />}
+      {isLogModalOpen && <LogMealModal mealType={selectedMealType} onClose={() => setIsLogModalOpen(false)} onAddMeal={(meals) => { onLogMeal(meals, selectedMealType, currentDate); setIsLogModalOpen(false); showSuccess(); }} onAnalysisComplete={handleAnalysisComplete} />}
       {isWaterModalOpen && <WaterIntakeModal currentIntake={waterIntake} goal={8} onClose={() => setIsWaterModalOpen(false)} onIntakeChange={onWaterIntakeChange} />}
       {isVitalsModalOpen && <VitalsScanModal onClose={() => setIsVitalsModalOpen(false)} onSave={(v) => { onUpdateVitals(v); showSuccess(); }} />}
       {isQuickLogOpen && <QuickLogSuggestion onClose={() => setIsQuickLogOpen(false)} onLogOther={handleLogOtherFromQuickLog} />}
@@ -346,6 +395,16 @@ const Dashboard: React.FC<DashboardProps> = (props) => {
       {isLogStepsModalOpen && <LogStepsModal currentSteps={dailySteps.steps} onClose={() => setIsLogStepsModalOpen(false)} onSave={(steps) => { onLogSteps(steps); showSuccess(); }} />}
       {isLogSleepModalOpen && <LogSleepModal currentHours={sleepHours} onClose={() => setIsLogSleepModalOpen(false)} onSave={(hours) => { onSleepHoursChange(hours); showSuccess(); }} />}
       {isSyncModalOpen && <SyncDataModal currentSteps={dailySteps.steps} currentSleep={sleepHours} onClose={() => setIsSyncModalOpen(false)} onSave={(data) => { onSyncData(data); showSuccess(); }} />}
+      {confirmationData && (
+        <MealConfirmation
+          initialMeals={confirmationData.result}
+          imagePreviewUrl={confirmationData.imagePreviewUrl}
+          mealType={confirmationData.mealType}
+          onConfirm={handleConfirmAndLogMeal}
+          onBack={() => setConfirmationData(null)}
+          sources={confirmationData.sources}
+        />
+      )}
     </div>
   );
 };

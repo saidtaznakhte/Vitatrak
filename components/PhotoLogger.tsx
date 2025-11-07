@@ -1,35 +1,33 @@
+
 import React, { useState, useRef } from 'react';
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenAI } from "@google/genai";
 import { blobToBase64 } from './utils/imageUtils';
-import { useFeedback } from '../contexts/FeedbackContext';
 import { triggerHapticFeedback } from './utils/haptics';
 import { SparkleIcon } from './icons/SparkleIcon';
 import { CameraIcon } from './icons/CameraIcon';
 import { UploadIcon } from './icons/UploadIcon';
 import { XMarkIcon } from './icons/XMarkIcon';
 import type { MealNutritionInfo } from '../types';
+import { SpinnerIcon } from './icons/SpinnerIcon';
 
 interface PhotoLoggerProps {
-  onAddMeal: (newMeals: MealNutritionInfo[]) => void;
+  onAnalysisComplete: (result: MealNutritionInfo[], imageFile: File, sources: any[]) => void;
 }
 
-const PhotoLogger: React.FC<PhotoLoggerProps> = ({ onAddMeal }) => {
+const PhotoLogger: React.FC<PhotoLoggerProps> = ({ onAnalysisComplete }) => {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [analysisResult, setAnalysisResult] = useState<MealNutritionInfo[] | null>(null);
   const [error, setError] = useState<string>('');
   
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
-  const { showSuccess } = useFeedback();
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
       setImageFile(file);
       setPreviewUrl(URL.createObjectURL(file));
-      setAnalysisResult(null);
       setError('');
     }
   };
@@ -37,7 +35,6 @@ const PhotoLogger: React.FC<PhotoLoggerProps> = ({ onAddMeal }) => {
   const handleReset = () => {
     setImageFile(null);
     setPreviewUrl('');
-    setAnalysisResult(null);
     setError('');
     if (cameraInputRef.current) cameraInputRef.current.value = '';
     if (galleryInputRef.current) galleryInputRef.current.value = '';
@@ -51,7 +48,7 @@ const PhotoLogger: React.FC<PhotoLoggerProps> = ({ onAddMeal }) => {
 
     setIsLoading(true);
     setError('');
-    setAnalysisResult(null);
+    triggerHapticFeedback();
 
     try {
       const base64Data = await blobToBase64(imageFile);
@@ -65,47 +62,32 @@ const PhotoLogger: React.FC<PhotoLoggerProps> = ({ onAddMeal }) => {
       };
 
       const textPart = {
-        text: "Analyze the meal in this image. Identify each food item and estimate its nutritional values (calories, protein, carbs, fats). Return the data as a JSON array of objects. Each object should have 'name', 'calories', 'protein', 'carbs', and 'fats' keys. If you cannot identify items, return an empty array.",
+        text: "Analyze the meal in this image. Use web search to find the most accurate nutritional information for the identified food items. Identify each food item and estimate its nutritional values (calories, protein, carbs, fats). Return the data as a JSON array of objects. Each object should have 'name', 'calories', 'protein', 'carbs', and 'fats' keys. If you cannot identify items, return an empty array. IMPORTANT: Your entire response must be ONLY the JSON array, with no other text, markdown, or explanations.",
       };
 
       const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash',
         contents: { parts: [imagePart, textPart] },
         config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                name: { type: Type.STRING },
-                calories: { type: Type.NUMBER },
-                protein: { type: Type.NUMBER },
-                carbs: { type: Type.NUMBER },
-                fats: { type: Type.NUMBER },
-              },
-              required: ['name', 'calories', 'protein', 'carbs', 'fats'],
-            },
-          },
+          tools: [{googleSearch: {}}],
         },
       });
 
-      const result = JSON.parse(response.text);
-      setAnalysisResult(result);
+      const sources = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+      const responseText = response.text.replace(/```json/g, '').replace(/```/g, '').trim();
+      const result = JSON.parse(responseText);
+
+      if (result && result.length > 0) {
+        onAnalysisComplete(result, imageFile, sources);
+      } else {
+        setError('The AI could not identify any food in the image. Please try a clearer photo.');
+      }
 
     } catch (e) {
       console.error(e);
       setError('Failed to analyze image. The AI may be busy, or the image could not be processed. Please try again.');
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const handleAddToLog = () => {
-    if (analysisResult) {
-      onAddMeal(analysisResult);
-      triggerHapticFeedback([100, 50, 100]);
-      showSuccess();
     }
   };
   
@@ -157,50 +139,28 @@ const PhotoLogger: React.FC<PhotoLoggerProps> = ({ onAddMeal }) => {
         </div>
       )}
       
-      {imageFile && !analysisResult && (
+      {imageFile && !isLoading && !error && (
         <button
           onClick={analyzeImage}
-          disabled={isLoading}
-          className="w-full mt-4 bg-accent text-white font-bold py-3 px-4 rounded-lg flex items-center justify-center disabled:bg-accent/70 transition-colors"
+          className="w-full mt-4 bg-accent text-white font-bold py-3 px-4 rounded-lg flex items-center justify-center transition-colors"
         >
-          {isLoading ? (
-            <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-          ) : (
-            <>
-              <SparkleIcon className="w-5 h-5 mr-2" />
-              Analyze Meal
-            </>
-          )}
+          <SparkleIcon className="w-5 h-5 mr-2" />
+          Analyze Meal
         </button>
       )}
 
-      {error && <p className="text-red-500 text-sm text-center mt-4">{error}</p>}
-      
-      {analysisResult && (
-        <div className="mt-6 animate-fade-in">
-          <h3 className="text-lg font-bold text-text-primary-light dark:text-text-primary-dark mb-3">Analysis Results</h3>
-          {analysisResult.length > 0 ? (
-            <div className="space-y-3">
-              {analysisResult.map((item, index) => (
-                <div key={index} className="bg-card-light dark:bg-card-dark p-4 rounded-lg shadow-md">
-                  <h4 className="font-semibold text-text-primary-light dark:text-text-primary-dark capitalize">{item.name}</h4>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs mt-2 text-text-secondary-light dark:text-text-secondary-dark">
-                    <span>🔥 {item.calories} kcal</span>
-                    <span>💪 {item.protein}g P</span>
-                    <span>🍞 {item.carbs}g C</span>
-                    <span>🥑 {item.fats}g F</span>
-                  </div>
-                </div>
-              ))}
-              <button 
-                onClick={handleAddToLog}
-                className="w-full mt-4 bg-accent/20 text-accent font-bold py-3 px-4 rounded-lg hover:bg-accent/30 transition-colors">
-                Add to Log
-              </button>
-            </div>
-          ) : (
-            <p className="text-text-secondary-light dark:text-text-secondary-dark text-center">No food items could be identified in the image. Please try a different photo.</p>
-          )}
+      {isLoading && (
+        <div className="w-full mt-4 py-3 px-4 flex items-center justify-center">
+            <SpinnerIcon className="w-6 h-6 text-accent" />
+        </div>
+      )}
+
+      {error && (
+        <div className="text-center mt-4">
+            <p className="text-red-500 text-sm">{error}</p>
+            <button onClick={analyzeImage} className="mt-2 text-accent font-semibold text-sm">
+                Try Again
+            </button>
         </div>
       )}
     </div>

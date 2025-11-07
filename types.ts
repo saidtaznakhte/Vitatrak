@@ -13,6 +13,8 @@ export interface Achievement {
   description: string;
   unlocked: boolean;
   icon: React.ReactNode;
+  isNew?: boolean;
+  highlightColor?: 'gold' | 'green';
 }
 
 export interface FrequentMeal {

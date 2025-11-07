@@ -46,6 +46,7 @@ const App: React.FC = () => {
   const [profile, setProfile] = useState<UserProfile>(initialProfile);
   const [dailySteps, setDailySteps] = useState<DailySteps>({ date: new Date().toISOString().split('T')[0], steps: 0 });
   const [streak, setStreak] = useState(1);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   
   // New wellness states
   const [waterIntake, setWaterIntake] = useState(0);
@@ -353,6 +354,7 @@ const App: React.FC = () => {
                   onStopTracking={handleStopTracking}
                   currentWeight={currentWeight}
                   goalWeight={goalWeight}
+                  setIsModalOpen={setIsModalOpen}
                 />;
       case 'progress':
         return <Progress 
@@ -406,6 +408,7 @@ const App: React.FC = () => {
                   onStopTracking={handleStopTracking}
                   currentWeight={currentWeight}
                   goalWeight={goalWeight}
+                  setIsModalOpen={setIsModalOpen}
                 />;
     }
   };
@@ -417,7 +420,7 @@ const App: React.FC = () => {
           <main className="pb-24 animate-fade-in">
             {renderView()}
           </main>
-          <BottomNav activeView={activeView} setActiveView={setActiveView} />
+          {!isModalOpen && <BottomNav activeView={activeView} setActiveView={setActiveView} />}
           {showOnboarding && <OnboardingModal onComplete={handleOnboardingComplete} />}
           <Confetti />
           <SuccessOverlay />

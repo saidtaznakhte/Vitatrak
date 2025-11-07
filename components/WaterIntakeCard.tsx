@@ -12,26 +12,29 @@ const WaterIntakeCard: React.FC<WaterIntakeCardProps> = ({ intake, goal, onClick
   const glasses = Array.from({ length: goal }, (_, i) => i < intake);
 
   return (
-    <button 
+    <button
       onClick={onClick}
-      className="bg-card-light dark:bg-card-dark p-4 rounded-2xl shadow-lg flex flex-col justify-between h-full text-left w-full hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
+      className="bg-card-light dark:bg-card-dark p-4 rounded-2xl shadow-lg w-full text-left hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
+      aria-label={`Log water intake, currently ${intake} out of ${goal} glasses.`}
     >
-      <div>
+      <div className="flex justify-between items-center mb-4">
         <div className="flex items-center space-x-2">
-          <WaterDropIcon className="w-6 h-6 text-accent" />
-          <h3 className="font-semibold text-text-secondary-light dark:text-text-secondary-dark">Water Intake</h3>
+          <WaterDropIcon className="w-6 h-6 text-blue-500" />
+          <h3 className="font-bold text-text-primary-light dark:text-text-primary-dark">Water Intake</h3>
         </div>
-        <div className="mt-3">
-          <span className="text-3xl font-bold text-text-primary-light dark:text-text-primary-dark">{intake}</span>
-          <span className="text-sm font-medium text-text-secondary-light dark:text-text-secondary-dark"> / {goal} glasses</span>
-        </div>
+        <p className="font-semibold text-sm text-text-secondary-light dark:text-text-secondary-dark">
+          {intake} / {goal} glasses
+        </p>
       </div>
-      <div className="flex justify-between items-center mt-4">
-        <div className="flex space-x-1">
-          {glasses.map((filled, index) => (
-            <div key={index} className={`w-4 h-4 rounded-full transition-colors ${filled ? 'bg-accent' : 'bg-gray-200 dark:bg-background-dark'}`}></div>
-          ))}
-        </div>
+      <div className="grid grid-cols-8 gap-2">
+        {glasses.map((filled, index) => (
+          <div key={index} className="w-full h-2 rounded-full bg-gray-200 dark:bg-background-dark">
+             <div
+              className="h-full rounded-full bg-blue-500 transition-all duration-500"
+              style={{ width: filled ? '100%' : '0%' }}
+            ></div>
+          </div>
+        ))}
       </div>
     </button>
   );

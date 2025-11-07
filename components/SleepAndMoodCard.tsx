@@ -1,5 +1,6 @@
+
 import React from 'react';
-import { BedIcon } from './icons/BedIcon';
+import { MoonIcon } from './icons/MoonIcon';
 
 interface SleepAndMoodCardProps {
   sleepHours: number;
@@ -9,9 +10,9 @@ interface SleepAndMoodCardProps {
 }
 
 const moodEmojis = {
-  Happy: '😊',
-  Neutral: '😐',
   Sad: '😔',
+  Neutral: '😐',
+  Happy: '😊',
 };
 
 const SleepAndMoodCard: React.FC<SleepAndMoodCardProps> = ({ sleepHours, mood, setMood, onSleepClick }) => {
@@ -19,25 +20,27 @@ const SleepAndMoodCard: React.FC<SleepAndMoodCardProps> = ({ sleepHours, mood, s
     <div className="bg-card-light dark:bg-card-dark p-4 rounded-2xl shadow-lg flex flex-col justify-between">
       <div>
         <div className="flex items-center space-x-2">
-          <BedIcon className="w-6 h-6 text-accent" />
-          <h3 className="font-semibold text-text-secondary-light dark:text-text-secondary-dark">Sleep & Mood</h3>
+          <MoonIcon className="w-6 h-6 text-purple-500" />
+          <h3 className="font-bold text-text-primary-light dark:text-text-primary-dark">Sleep & Mood</h3>
         </div>
         <button onClick={onSleepClick} className="w-full text-left mt-3">
-          <span className="text-3xl font-bold text-text-primary-light dark:text-text-primary-dark">{sleepHours}</span>
-          <span className="text-sm font-medium text-text-secondary-light dark:text-text-secondary-dark"> hours</span>
+          <p className="text-sm text-text-secondary-light dark:text-text-secondary-dark">
+            <span className="text-3xl font-bold text-text-primary-light dark:text-text-primary-dark">{sleepHours}</span> hours
+          </p>
         </button>
       </div>
       <div className="mt-4">
-        <p className="text-xs font-medium text-text-secondary-light dark:text-text-secondary-dark mb-2">How are you feeling?</p>
-        <div className="flex justify-between bg-gray-100 dark:bg-card-dark/80 p-1 rounded-lg">
-          {(['Happy', 'Neutral', 'Sad'] as const).map(m => (
-            <button 
+        <p className="text-sm font-medium text-text-secondary-light dark:text-text-secondary-dark mb-3">How are you feeling?</p>
+        <div className="flex justify-around items-center">
+          {(['Sad', 'Neutral', 'Happy'] as const).map(m => (
+            <button
               key={m}
               onClick={() => setMood(m)}
-              className={`w-full py-1 text-xl rounded-md transition-colors ${mood === m ? 'bg-accent/20' : 'hover:bg-accent/10'}`}
+              className={`w-14 h-14 flex items-center justify-center rounded-full transition-all duration-200 ${mood === m ? 'bg-accent/20 scale-110' : 'bg-gray-100 dark:bg-background-dark hover:bg-gray-200 dark:hover:bg-white/10'}`}
               aria-label={`Set mood to ${m}`}
+              aria-pressed={mood === m}
             >
-              {moodEmojis[m]}
+              <span className="text-3xl">{moodEmojis[m]}</span>
             </button>
           ))}
         </div>

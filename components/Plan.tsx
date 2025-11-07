@@ -1,10 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import { GoogleGenAI, Type } from "@google/genai";
+
+import React, { useState, useEffect, useCallback } from 'react';
+import { GoogleGenAI } from "@google/genai";
 import type { LoggedMeal, Macro } from '../types';
 import MacroCard from './MacroCard';
 import { SpinnerIcon } from './icons/SpinnerIcon';
 import WeeklyCalendar from './WeeklyCalendar';
 import CalendarModal from './CalendarModal';
+import Sources from './Sources';
 
 const macroGoals = {
   'Calories': 2000,
@@ -16,79 +18,72 @@ const macroGoals = {
 const Plan: React.FC = () => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [plannedMeals, setPlannedMeals] = useState<LoggedMeal[]>([]);
+  const [planSources, setPlanSources] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isCalendarModalOpen, setIsCalendarModalOpen] = useState(false);
 
-  useEffect(() => {
-    const fetchMealPlan = async (locationPrompt: string) => {
-      setIsLoading(true);
-      setError(null);
-      try {
-        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-        const prompt = `Generate a culturally relevant one-day meal plan (Breakfast, Lunch, Dinner, Snack) for ${locationPrompt} on a ${currentDate.toLocaleDateString('en-US', { weekday: 'long' })}. The total calories should be around 2000. For each meal, provide the name, estimated calories, protein, carbs, and fats. Return the response as a JSON array of objects, where each object has 'name', 'calories', 'mealType', 'protein', 'carbs', and 'fats'.`;
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: prompt,
-            config: {
-                responseMimeType: "application/json",
-                responseSchema: {
-                    type: Type.ARRAY,
-                    items: {
-                        type: Type.OBJECT,
-                        properties: {
-                            name: { type: Type.STRING },
-                            calories: { type: Type.NUMBER },
-                            mealType: { type: Type.STRING },
-                            protein: { type: Type.NUMBER },
-                            carbs: { type: Type.NUMBER },
-                            fats: { type: Type.NUMBER },
-                        },
-                        required: ['name', 'calories', 'mealType', 'protein', 'carbs', 'fats'],
-                    },
-                },
-            },
-        });
-
-        const results: Omit<LoggedMeal, 'id'>[] = JSON.parse(response.text);
-        const mealsWithIds: LoggedMeal[] = results.map((meal, index) => ({
-            ...meal,
-            id: Date.now() + index,
-            // Ensure mealType is one of the allowed values
-            mealType: ['Breakfast', 'Lunch', 'Dinner', 'Snack'].includes(meal.mealType) 
-                ? meal.mealType as 'Breakfast' | 'Lunch' | 'Dinner' | 'Snack'
-                : 'Snack',
-        }));
-        setPlannedMeals(mealsWithIds);
-
-      } catch (e) {
-        console.error(e);
-        setError('Could not generate a meal plan. Please try again later.');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    const getLocationAndFetch = () => {
-      if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-          (position) => {
-            const { latitude, longitude } = position.coords;
-            fetchMealPlan(`the location around latitude ${latitude} and longitude ${longitude}`);
+  const fetchMealPlan = useCallback(async (locationPrompt: string) => {
+    setIsLoading(true);
+    setError(null);
+    setPlannedMeals([]);
+    setPlanSources([]);
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const prompt = `Use Google Search to find culturally relevant and healthy meal options for a user in ${locationPrompt} on a ${currentDate.toLocaleDateString('en-US', { weekday: 'long' })}. Generate a one-day meal plan (Breakfast, Lunch, Dinner, Snack). The total calories should be around 2000. For each meal, provide the name, estimated calories, protein, carbs, and fats. Return the response as a JSON array of objects, where each object has 'name', 'calories', 'mealType', 'protein', 'carbs', and 'fats'. IMPORTANT: Your entire response must be ONLY the JSON array, with no other text, markdown, or explanations.`;
+      
+      const response = await ai.models.generateContent({
+          model: 'gemini-2.5-flash',
+          contents: prompt,
+          config: {
+              tools: [{googleSearch: {}}],
           },
-          (err) => {
-            console.warn("Geolocation denied:", err.message);
-            fetchMealPlan("a standard healthy diet"); // Fallback
-          }
-        );
-      } else {
-        console.warn("Geolocation not supported.");
-        fetchMealPlan("a standard healthy diet"); // Fallback
-      }
-    };
+      });
 
-    getLocationAndFetch();
+      setPlanSources(response.candidates?.[0]?.groundingMetadata?.groundingChunks || []);
+      const responseText = response.text.replace(/```json/g, '').replace(/```/g, '').trim();
+      const results: Omit<LoggedMeal, 'id' | 'date'>[] = JSON.parse(responseText);
+      
+      const mealsWithIds: LoggedMeal[] = results.map((meal, index) => ({
+          ...meal,
+          id: Date.now() + index,
+          date: currentDate.toISOString().split('T')[0],
+          mealType: ['Breakfast', 'Lunch', 'Dinner', 'Snack'].includes(meal.mealType) 
+              ? meal.mealType as 'Breakfast' | 'Lunch' | 'Dinner' | 'Snack'
+              : 'Snack',
+      }));
+      setPlannedMeals(mealsWithIds);
+
+    } catch (e) {
+      console.error(e);
+      setError('Could not generate a meal plan. Please try again later.');
+    } finally {
+      setIsLoading(false);
+    }
   }, [currentDate]);
+
+  const getLocationAndFetch = useCallback(() => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const { latitude, longitude } = position.coords;
+          fetchMealPlan(`the location around latitude ${latitude} and longitude ${longitude}`);
+        },
+        (err) => {
+          console.warn("Geolocation denied:", err.message);
+          fetchMealPlan(`a standard healthy diet`); // Fallback
+        }
+      );
+    } else {
+      console.warn("Geolocation not supported.");
+      fetchMealPlan(`a standard healthy diet`); // Fallback
+    }
+  }, [fetchMealPlan]);
+
+
+  useEffect(() => {
+    getLocationAndFetch();
+  }, [getLocationAndFetch, currentDate]);
 
   
   const projectedMacros = plannedMeals.reduce((acc, meal) => {
@@ -121,24 +116,36 @@ const Plan: React.FC = () => {
       );
     }
     if (error) {
-      return <p className="text-center text-red-500 py-8">{error}</p>;
+      return (
+        <div className="text-center py-8">
+            <p className="text-red-500">{error}</p>
+            <button onClick={getLocationAndFetch} className="mt-2 text-accent font-semibold text-sm">
+                Try Again
+            </button>
+        </div>
+      );
     }
-    if (plannedMeals.length === 0) {
+    if (plannedMeals.length === 0 && !isLoading) {
       return <p className="text-center text-text-secondary-light dark:text-text-secondary-dark py-8">No meal suggestions for this day.</p>;
     }
 
-    return (['Breakfast', 'Lunch', 'Dinner', 'Snack'] as const).map(mealType => {
-      const meals = plannedMeals.filter(m => m.mealType === mealType);
-      if (meals.length === 0) return null;
-      return (
-        <div key={mealType}>
-          <h3 className="font-bold text-text-primary-light dark:text-text-primary-dark mb-2">{mealType}</h3>
-          <div className="space-y-2">
-            {meals.map(meal => <MealItem key={meal.id} meal={meal} />)}
-          </div>
-        </div>
-      );
-    });
+    return (
+        <>
+            {(['Breakfast', 'Lunch', 'Dinner', 'Snack'] as const).map(mealType => {
+            const meals = plannedMeals.filter(m => m.mealType === mealType);
+            if (meals.length === 0) return null;
+            return (
+                <div key={mealType}>
+                <h3 className="font-bold text-text-primary-light dark:text-text-primary-dark mb-2">{mealType}</h3>
+                <div className="space-y-2">
+                    {meals.map(meal => <MealItem key={meal.id} meal={meal} />)}
+                </div>
+                </div>
+            );
+            })}
+            <Sources sources={planSources} />
+        </>
+    );
   };
 
 

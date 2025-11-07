@@ -1,18 +1,20 @@
-import React, { useState, useEffect } from 'react';
-import { GoogleGenAI, Type } from "@google/genai";
+
+import React, { useState, useEffect, useCallback } from 'react';
+import { GoogleGenAI } from "@google/genai";
 import PhotoLogger from './PhotoLogger';
 import { CameraIcon } from './icons/CameraIcon';
-import { BarcodeIcon } from './icons/BarcodeIcon';
 import { XMarkIcon } from './icons/XMarkIcon';
 import { ChevronLeftIcon } from './icons/ChevronLeftIcon';
 import type { FrequentMeal, MealNutritionInfo } from '../types';
 import SearchResultItem from './SearchResultItem';
 import { SpinnerIcon } from './icons/SpinnerIcon';
+import Sources from './Sources';
 
 interface LogMealModalProps {
   mealType: 'Breakfast' | 'Lunch' | 'Dinner' | 'Snack';
   onClose: () => void;
   onAddMeal: (newMeals: MealNutritionInfo[]) => void;
+  onAnalysisComplete: (result: MealNutritionInfo[], imageFile: File, sources: any[]) => void;
 }
 
 type ModalView = 'main' | 'photo';
@@ -35,75 +37,65 @@ const FrequentMealCard: React.FC<{ meal: FrequentMeal, onClick: () => void }> = 
   </button>
 );
 
-const LogMealModal: React.FC<LogMealModalProps> = ({ mealType, onClose, onAddMeal }) => {
+const LogMealModal: React.FC<LogMealModalProps> = ({ mealType, onClose, onAddMeal, onAnalysisComplete }) => {
   const [view, setView] = useState<ModalView>('main');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<MealNutritionInfo[]>([]);
+  const [searchSources, setSearchSources] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
+  const [lastSearchedQuery, setLastSearchedQuery] = useState('');
+
+  const performSearch = useCallback(async (query: string) => {
+    setIsSearching(true);
+    setSearchError(null);
+    setSearchResults([]);
+    setSearchSources([]);
+    setLastSearchedQuery(query);
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      
+      const prompt = `Use Google Search to find accurate nutritional information for the food query in English or Arabic: '${query}'. Provide a list of common variations and serving sizes with their nutritional information (calories, protein, carbs, fats). Return a JSON array of objects, where each object has 'name', 'calories', 'protein', 'carbs', and 'fats'. The 'name' should be in the same language as the query. If the query is a number (like a barcode), try to find the product. Provide up to 5 results. If you can't find the food, return an empty array. IMPORTANT: Your entire response must be ONLY the JSON array, with no other text, markdown, or explanations.`;
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt,
+        config: {
+          tools: [{googleSearch: {}}],
+        },
+      });
+      
+      setSearchSources(response.candidates?.[0]?.groundingMetadata?.groundingChunks || []);
+      
+      const responseText = response.text.replace(/```json/g, '').replace(/```/g, '').trim();
+      const results = JSON.parse(responseText);
+
+      setSearchResults(results);
+      if (results.length === 0) {
+        setSearchError("No results found. Try being more specific.");
+      }
+    } catch (e) {
+      console.error(e);
+      setSearchError('Sorry, something went wrong. Please try again.');
+    } finally {
+      setIsSearching(false);
+    }
+  }, []);
 
   useEffect(() => {
-    const performSearch = async (query: string) => {
-      setIsSearching(true);
-      setSearchError(null);
-      setSearchResults([]);
-      try {
-        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-        
-        const prompt = `Analyze the food query in English or Arabic: '${query}'. Provide a list of common variations and serving sizes with their nutritional information (calories, protein, carbs, fats). Return a JSON array of objects, where each object has 'name', 'calories', 'protein', 'carbs', and 'fats'. The 'name' should be in the same language as the query. Provide up to 5 results. If you can't find the food, return an empty array.`;
-
-        const response = await ai.models.generateContent({
-          model: 'gemini-2.5-flash',
-          contents: prompt,
-          config: {
-            responseMimeType: "application/json",
-            responseSchema: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  name: { type: Type.STRING },
-                  calories: { type: Type.NUMBER },
-                  protein: { type: Type.NUMBER },
-                  carbs: { type: Type.NUMBER },
-                  fats: { type: Type.NUMBER },
-                },
-                required: ['name', 'calories', 'protein', 'carbs', 'fats'],
-              },
-            },
-          },
-        });
-        
-        const results = JSON.parse(response.text);
-        setSearchResults(results);
-        if (results.length === 0) {
-          setSearchError("No results found. Try being more specific.");
-        }
-      } catch (e) {
-        console.error(e);
-        setSearchError('Sorry, something went wrong. Please try again.');
-      } finally {
-        setIsSearching(false);
-      }
-    };
-
     const handler = setTimeout(() => {
       if (searchQuery.trim().length > 2) {
         performSearch(searchQuery);
       } else {
         setSearchResults([]);
         setSearchError(null);
+        setSearchSources([]);
       }
     }, 500); // 500ms debounce
 
     return () => clearTimeout(handler);
-  }, [searchQuery]);
+  }, [searchQuery, performSearch]);
 
-
-  const handleBarcodeScan = () => {
-    alert('Barcode scanner activated! (This is a simulation)');
-  };
-  
   const handleFrequentMealClick = (meal: FrequentMeal) => {
     onAddMeal([{ 
       name: meal.name, 
@@ -122,15 +114,8 @@ const LogMealModal: React.FC<LogMealModalProps> = ({ mealType, onClose, onAddMea
     <>
       <div className="grid grid-cols-2 gap-4 mb-6">
         <button 
-          onClick={handleBarcodeScan}
-          className="flex flex-col items-center justify-center p-4 bg-card-light dark:bg-card-dark rounded-xl shadow-lg hover:shadow-xl transition-shadow aspect-square"
-        >
-          <BarcodeIcon className="w-10 h-10 text-accent mb-2" />
-          <span className="font-semibold text-sm text-center text-text-primary-light dark:text-text-primary-dark">Scan Barcode</span>
-        </button>
-        <button 
           onClick={() => setView('photo')}
-          className="flex flex-col items-center justify-center p-4 bg-card-light dark:bg-card-dark rounded-xl shadow-lg hover:shadow-xl transition-shadow aspect-square"
+          className="col-span-2 flex flex-col items-center justify-center p-4 bg-card-light dark:bg-card-dark rounded-xl shadow-lg hover:shadow-xl transition-shadow"
         >
           <CameraIcon className="w-10 h-10 text-accent mb-2" />
           <span className="font-semibold text-sm text-center text-text-primary-light dark:text-text-primary-dark">Log with Photo</span>
@@ -154,7 +139,14 @@ const LogMealModal: React.FC<LogMealModalProps> = ({ mealType, onClose, onAddMea
           </div>
         )}
         {searchError && !isSearching && (
-          <p className="text-center text-text-secondary-light dark:text-text-secondary-dark py-8">{searchError}</p>
+          <div className="text-center py-8">
+            <p className="text-text-secondary-light dark:text-text-secondary-dark">{searchError}</p>
+            {searchError.includes('something went wrong') && (
+              <button onClick={() => performSearch(lastSearchedQuery)} className="mt-2 text-accent font-semibold text-sm">
+                Try Again
+              </button>
+            )}
+          </div>
         )}
         {searchResults.length > 0 && !isSearching && (
           <div>
@@ -164,6 +156,7 @@ const LogMealModal: React.FC<LogMealModalProps> = ({ mealType, onClose, onAddMea
                 <SearchResultItem key={index} meal={meal} onAdd={handleSearchResultClick} />
               ))}
             </div>
+            <Sources sources={searchSources} />
           </div>
         )}
 
@@ -205,7 +198,8 @@ const LogMealModal: React.FC<LogMealModalProps> = ({ mealType, onClose, onAddMea
         </header>
 
         <div className="overflow-y-auto flex-grow">
-          {view === 'main' ? renderMainView() : <PhotoLogger onAddMeal={onAddMeal} />}
+          {view === 'main' && renderMainView()}
+          {view === 'photo' && <PhotoLogger onAnalysisComplete={onAnalysisComplete} />}
         </div>
       </div>
        <style>{`
