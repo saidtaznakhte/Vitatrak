@@ -1,29 +1,34 @@
-
 import React, { useState, useContext } from 'react';
 import { CelebrationContext } from '../../contexts/CelebrationContext';
 import { ChevronRightIcon } from '../icons/ChevronRightIcon';
 
 interface OnboardingModalProps {
-  onComplete: () => void;
+  onComplete: (profileData: { name: string; age: number }) => void;
 }
 
 const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete }) => {
   const [step, setStep] = useState(0);
+  const [name, setName] = useState('');
+  const [age, setAge] = useState('');
   const { triggerCelebration } = useContext(CelebrationContext);
 
   const handleComplete = () => {
-    triggerCelebration();
-    onComplete();
+    const ageNumber = parseInt(age, 10);
+    if (name.trim() && !isNaN(ageNumber) && ageNumber > 0) {
+      triggerCelebration();
+      onComplete({ name, age: ageNumber });
+    }
   };
   
   const nextStep = () => setStep(s => s + 1);
 
   const stepsContent = [
     <Step key={0} title="Welcome to VitaTrack" description="Let's personalize your health journey. It only takes a minute." buttonText="Get Started" onNext={nextStep} />,
-    <OptionStep key={1} title="What's your primary goal?" options={['Lose Weight', 'Maintain Weight', 'Build Muscle']} onNext={nextStep} />,
-    <OptionStep key={2} title="What's your activity level?" options={['Not Active', 'Lightly Active', 'Active', 'Very Active']} onNext={nextStep} />,
-    <OptionStep key={3} title="Any dietary preferences?" options={['None', 'Vegetarian', 'Vegan', 'Keto', 'Paleo']} onNext={nextStep} />,
-    <Step key={4} title="You're all set!" description="Your personalized plan is ready. Let's start tracking your progress." buttonText="Start My Journey" onNext={handleComplete} />,
+    <ProfileStep key={1} name={name} setName={setName} age={age} setAge={setAge} onNext={nextStep} />,
+    <OptionStep key={2} title="What's your primary goal?" options={['Lose Weight', 'Maintain Weight', 'Build Muscle']} onNext={nextStep} />,
+    <OptionStep key={3} title="What's your activity level?" options={['Not Active', 'Lightly Active', 'Active', 'Very Active']} onNext={nextStep} />,
+    <OptionStep key={4} title="Any dietary preferences?" options={['None', 'Vegetarian', 'Vegan', 'Keto', 'Paleo']} onNext={nextStep} />,
+    <Step key={5} title="You're all set!" description="Your personalized plan is ready. Let's start tracking your progress." buttonText="Start My Journey" onNext={handleComplete} />,
   ];
 
   return (
@@ -61,5 +66,52 @@ const OptionStep: React.FC<{ title: string; options: string[], onNext: () => voi
         </div>
     </div>
 );
+
+const ProfileStep: React.FC<{
+  name: string;
+  setName: (name: string) => void;
+  age: string;
+  setAge: (age: string) => void;
+  onNext: () => void;
+}> = ({ name, setName, age, setAge, onNext }) => {
+  const isNextDisabled = !name.trim() || !age.trim() || parseInt(age, 10) <= 0;
+
+  return (
+    <div className="animate-fade-in">
+      <h2 className="text-2xl font-bold text-text-primary-light dark:text-text-primary-dark mb-6 text-center">Tell us about yourself</h2>
+      <div className="space-y-4">
+        <div>
+          <label htmlFor="name" className="block text-sm font-medium text-text-secondary-light dark:text-text-secondary-dark mb-1">Name</label>
+          <input
+            id="name"
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g., Alex Doe"
+            className="w-full p-3 rounded-lg bg-gray-100 dark:bg-card-dark border border-gray-200 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-accent"
+          />
+        </div>
+        <div>
+          <label htmlFor="age" className="block text-sm font-medium text-text-secondary-light dark:text-text-secondary-dark mb-1">Age</label>
+          <input
+            id="age"
+            type="number"
+            value={age}
+            onChange={(e) => setAge(e.target.value)}
+            placeholder="e.g., 28"
+            className="w-full p-3 rounded-lg bg-gray-100 dark:bg-card-dark border border-gray-200 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-accent"
+          />
+        </div>
+      </div>
+      <button 
+        onClick={onNext} 
+        disabled={isNextDisabled}
+        className="w-full mt-8 bg-accent text-white font-bold py-3 px-4 rounded-lg flex items-center justify-center hover:bg-accent/90 transition-colors disabled:bg-accent/50 disabled:cursor-not-allowed"
+      >
+        Next <ChevronRightIcon className="w-5 h-5 ml-2" />
+      </button>
+    </div>
+  );
+};
 
 export default OnboardingModal;

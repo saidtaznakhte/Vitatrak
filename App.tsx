@@ -1,16 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Dashboard from './components/Dashboard';
 import Progress from './components/Progress';
 import Settings from './components/Settings';
 import Community from './components/Community';
 import Plan from './components/Plan';
 import BottomNav from './components/BottomNav';
-import type { ActiveView, Theme, MacroGoals, WeightEntry, LoggedMeal, MealNutritionInfo } from './types';
+import type { ActiveView, Theme, MacroGoals, WeightEntry, LoggedMeal, MealNutritionInfo, UserProfile, DailySteps, Vitals } from './types';
 import OnboardingModal from './components/onboarding/OnboardingModal';
 import { CelebrationProvider } from './contexts/CelebrationContext';
 import Confetti from './components/celebrations/Confetti';
 import { FeedbackProvider } from './contexts/FeedbackContext';
 import SuccessOverlay from './components/SuccessOverlay';
+import { haversineDistance } from './utils/geolocation';
 
 const initialMacroGoals: MacroGoals = {
   'Calories': { goal: 2000, unit: '' },
@@ -19,21 +20,15 @@ const initialMacroGoals: MacroGoals = {
   'Fats': { goal: 70, unit: 'g' },
 };
 
-const initialWeightData: WeightEntry[] = [
-  { id: 1, date: new Date('2024-01-15').toISOString(), weight: 120 },
-  { id: 2, date: new Date('2024-02-15').toISOString(), weight: 118 },
-  { id: 3, date: new Date('2024-03-15').toISOString(), weight: 119 },
-  { id: 4, date: new Date('2024-04-15').toISOString(), weight: 117 },
-  { id: 5, date: new Date('2024-05-15').toISOString(), weight: 116 },
-  { id: 6, date: new Date('2024-06-15').toISOString(), weight: 115 },
-  { id: 7, date: new Date('2024-07-15').toISOString(), weight: 114 },
-];
+const initialWeightData: WeightEntry[] = [];
 
-const initialLoggedMeals: LoggedMeal[] = [
-    { id: 1, name: 'Avocado Toast & Eggs', calories: 400, mealType: 'Breakfast', protein: 20, carbs: 50, fats: 15 },
-    { id: 2, name: 'Grilled Salmon Bowl', calories: 620, mealType: 'Lunch', protein: 40, carbs: 70, fats: 25 },
-    { id: 3, name: 'Yogurt & Granola', calories: 500, mealType: 'Snack', protein: 20, carbs: 30, fats: 10 },
-];
+const initialLoggedMeals: LoggedMeal[] = [];
+
+const initialProfile: UserProfile = {
+  name: 'New User',
+  age: 25,
+  avatarUrl: `https://avatar.iran.liara.run/public/boy?username=newuser`,
+};
 
 
 const App: React.FC = () => {
@@ -44,6 +39,22 @@ const App: React.FC = () => {
   const [weightData, setWeightData] = useState<WeightEntry[]>(initialWeightData);
   const [loggedMeals, setLoggedMeals] = useState<LoggedMeal[]>(initialLoggedMeals);
   const [goalWeight, setGoalWeight] = useState(114);
+  const [profile, setProfile] = useState<UserProfile>(initialProfile);
+  const [dailySteps, setDailySteps] = useState<DailySteps>({ date: new Date().toISOString().split('T')[0], steps: 0 });
+  
+  // New wellness states
+  const [waterIntake, setWaterIntake] = useState(0);
+  const [sleepHours, setSleepHours] = useState(0);
+  const [mood, setMood] = useState<'Happy' | 'Neutral' | 'Sad'>('Happy');
+  const [activeCalories, setActiveCalories] = useState(0);
+  const [vitals, setVitals] = useState<Vitals>({ heartRate: null, spO2: null, bloodPressure: null });
+  const [lastSynced, setLastSynced] = useState<string | null>(null);
+
+  // Live tracking state
+  const [isTracking, setIsTracking] = useState(false);
+  const [locationWatchId, setLocationWatchId] = useState<number | null>(null);
+  const lastPositionRef = useRef<GeolocationPosition | null>(null);
+
 
   useEffect(() => {
     const savedTheme = localStorage.getItem('theme') as Theme | null;
@@ -56,24 +67,50 @@ const App: React.FC = () => {
     }
     
     const savedMacros = localStorage.getItem('macroGoals');
-    if (savedMacros) {
-      setMacroGoals(JSON.parse(savedMacros));
-    }
+    if (savedMacros) setMacroGoals(JSON.parse(savedMacros));
 
     const savedWeightData = localStorage.getItem('weightData');
-    if (savedWeightData) {
-        setWeightData(JSON.parse(savedWeightData));
-    }
+    if (savedWeightData) setWeightData(JSON.parse(savedWeightData));
     
     const savedMeals = localStorage.getItem('loggedMeals');
-    if (savedMeals) {
-      setLoggedMeals(JSON.parse(savedMeals));
-    }
+    if (savedMeals) setLoggedMeals(JSON.parse(savedMeals));
 
     const savedGoalWeight = localStorage.getItem('goalWeight');
-    if (savedGoalWeight) {
-        setGoalWeight(JSON.parse(savedGoalWeight));
+    if (savedGoalWeight) setGoalWeight(JSON.parse(savedGoalWeight));
+    
+    const savedProfile = localStorage.getItem('userProfile');
+    if (savedProfile) setProfile(JSON.parse(savedProfile));
+    
+    // Daily reset logic for steps, water, sleep
+    const today = new Date().toISOString().split('T')[0];
+    const lastLoginDate = localStorage.getItem('lastLoginDate');
+
+    if (lastLoginDate === today) {
+        const savedStepsJSON = localStorage.getItem('dailySteps');
+        if (savedStepsJSON) setDailySteps(JSON.parse(savedStepsJSON));
+
+        const savedWater = localStorage.getItem('waterIntake');
+        if (savedWater) setWaterIntake(JSON.parse(savedWater));
+
+        const savedSleep = localStorage.getItem('sleepHours');
+        if (savedSleep) setSleepHours(JSON.parse(savedSleep));
+        
+        const savedActiveCalories = localStorage.getItem('activeCalories');
+        if (savedActiveCalories) setActiveCalories(JSON.parse(savedActiveCalories));
+
+    } else {
+        localStorage.setItem('lastLoginDate', today);
+        setDailySteps({ date: today, steps: 0 });
+        setWaterIntake(0);
+        setSleepHours(0);
+        setActiveCalories(0);
     }
+    
+    const savedVitals = localStorage.getItem('vitals');
+    if (savedVitals) setVitals(JSON.parse(savedVitals));
+    
+    const savedLastSynced = localStorage.getItem('lastSynced');
+    if (savedLastSynced) setLastSynced(JSON.parse(savedLastSynced));
 
   }, []);
 
@@ -86,16 +123,22 @@ const App: React.FC = () => {
     localStorage.setItem('theme', theme);
   }, [theme]);
   
-  useEffect(() => {
-    localStorage.setItem('loggedMeals', JSON.stringify(loggedMeals));
-  }, [loggedMeals]);
+  useEffect(() => { localStorage.setItem('loggedMeals', JSON.stringify(loggedMeals)); }, [loggedMeals]);
+  useEffect(() => { localStorage.setItem('dailySteps', JSON.stringify(dailySteps)); }, [dailySteps]);
+  useEffect(() => { localStorage.setItem('waterIntake', JSON.stringify(waterIntake)); }, [waterIntake]);
+  useEffect(() => { localStorage.setItem('sleepHours', JSON.stringify(sleepHours)); }, [sleepHours]);
+  useEffect(() => { localStorage.setItem('activeCalories', JSON.stringify(activeCalories)); }, [activeCalories]);
+  useEffect(() => { localStorage.setItem('vitals', JSON.stringify(vitals)); }, [vitals]);
+  useEffect(() => { localStorage.setItem('lastSynced', JSON.stringify(lastSynced)); }, [lastSynced]);
+
   
   const handleSetMacroGoals = (newGoals: MacroGoals) => {
     setMacroGoals(newGoals);
     localStorage.setItem('macroGoals', JSON.stringify(newGoals));
   };
   
-    const handleLogMeal = (newMeals: MealNutritionInfo[], mealType: 'Breakfast' | 'Lunch' | 'Dinner' | 'Snack') => {
+    const handleLogMeal = (newMeals: MealNutritionInfo[], mealType: 'Breakfast' | 'Lunch' | 'Dinner' | 'Snack', forDate: Date) => {
+    const dateString = forDate.toISOString().split('T')[0];
     const mealsToAdd: LoggedMeal[] = newMeals.map((meal, index) => ({
       id: Date.now() + index,
       name: meal.name,
@@ -104,6 +147,7 @@ const App: React.FC = () => {
       carbs: meal.carbs,
       fats: meal.fats,
       mealType: mealType,
+      date: dateString,
     }));
     setLoggedMeals(prev => [...prev, ...mealsToAdd]);
   };
@@ -149,14 +193,90 @@ const App: React.FC = () => {
     setGoalWeight(newGoalWeight);
     localStorage.setItem('goalWeight', JSON.stringify(newGoalWeight));
   };
+  
+  const handleUpdateProfile = (newProfile: UserProfile) => {
+    setProfile(newProfile);
+    localStorage.setItem('userProfile', JSON.stringify(newProfile));
+  };
 
   const toggleTheme = () => {
     setTheme(prevTheme => (prevTheme === 'light' ? 'dark' : 'light'));
   };
   
-  const handleOnboardingComplete = () => {
+  const handleOnboardingComplete = (profileData: { name: string; age: number }) => {
+    const newProfile: UserProfile = {
+      name: profileData.name,
+      age: profileData.age,
+      avatarUrl: `https://avatar.iran.liara.run/public/boy?username=${encodeURIComponent(profileData.name)}`,
+    };
+    handleUpdateProfile(newProfile);
     localStorage.setItem('hasCompletedOnboarding', 'true');
     setShowOnboarding(false);
+  };
+  
+  const handleLogSteps = (steps: number) => {
+    const today = new Date().toISOString().split('T')[0];
+    const newTotalSteps = Math.max(0, steps);
+    setDailySteps({ date: today, steps: newTotalSteps });
+    setActiveCalories(Math.round(newTotalSteps * 0.04));
+  };
+
+  const handleUpdateVitals = (newVitals: Partial<Vitals>) => {
+    setVitals(prev => ({ ...prev, ...newVitals }));
+  }
+
+  const handleSyncData = (data: { steps: number; sleep: number }) => {
+    handleLogSteps(data.steps);
+    setSleepHours(data.sleep);
+    setLastSynced(new Date().toISOString());
+  };
+
+  const handleStartTracking = () => {
+    if (!navigator.geolocation) {
+      alert("Geolocation is not supported by your browser.");
+      return;
+    }
+
+    setIsTracking(true);
+    const watchId = navigator.geolocation.watchPosition(
+      (position) => {
+        if (lastPositionRef.current) {
+          const distance = haversineDistance(
+            lastPositionRef.current.coords,
+            position.coords
+          );
+          
+          // 1 meter is roughly 1.3 steps for an average person
+          const newSteps = Math.round(distance * 1.3);
+          
+          if (newSteps > 0) {
+            setDailySteps(prev => {
+              const totalSteps = prev.steps + newSteps;
+              // Update active calories as well
+              setActiveCalories(Math.round(totalSteps * 0.04));
+              return { ...prev, steps: totalSteps };
+            });
+          }
+        }
+        lastPositionRef.current = position;
+      },
+      (error) => {
+        console.error("Error watching position:", error);
+        alert(`Error: ${error.message}. Please ensure location services are enabled.`);
+        setIsTracking(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+    setLocationWatchId(watchId);
+  };
+
+  const handleStopTracking = () => {
+    if (locationWatchId !== null) {
+      navigator.geolocation.clearWatch(locationWatchId);
+    }
+    setIsTracking(false);
+    setLocationWatchId(null);
+    lastPositionRef.current = null;
   };
 
   const currentWeight = weightData.length > 0 ? weightData[weightData.length - 1].weight : 0;
@@ -170,13 +290,35 @@ const App: React.FC = () => {
                   onLogMeal={handleLogMeal}
                   onDeleteMeal={handleDeleteMeal}
                   onUpdateMealType={handleUpdateMealType}
+                  profile={profile}
+                  dailySteps={dailySteps}
+                  onLogSteps={handleLogSteps}
+                  waterIntake={waterIntake}
+                  onWaterIntakeChange={setWaterIntake}
+                  sleepHours={sleepHours}
+                  onSleepHoursChange={setSleepHours}
+                  mood={mood}
+                  onMoodChange={setMood}
+                  activeCalories={activeCalories}
+                  vitals={vitals}
+                  onUpdateVitals={handleUpdateVitals}
+                  lastSynced={lastSynced}
+                  onSyncData={handleSyncData}
+                  isTracking={isTracking}
+                  onStartTracking={handleStartTracking}
+                  onStopTracking={handleStopTracking}
                 />;
       case 'progress':
-        return <Progress weightData={weightData} goalWeight={goalWeight} onLogWeight={handleLogWeight} />;
+        return <Progress 
+                  weightData={weightData} 
+                  goalWeight={goalWeight} 
+                  onLogWeight={handleLogWeight} 
+                  profile={profile}
+                />;
       case 'plan':
         return <Plan />;
        case 'community':
-        return <Community />;
+        return <Community profile={profile} />;
       case 'settings':
         return <Settings 
                   currentTheme={theme} 
@@ -188,6 +330,8 @@ const App: React.FC = () => {
                   onUpdateWeightAndGoal={handleUpdateWeightAndGoal}
                   weightData={weightData}
                   onDeleteWeightEntry={handleDeleteWeightEntry}
+                  profile={profile}
+                  onUpdateProfile={handleUpdateProfile}
                 />;
       default:
         return <Dashboard 
@@ -196,6 +340,23 @@ const App: React.FC = () => {
                   onLogMeal={handleLogMeal}
                   onDeleteMeal={handleDeleteMeal}
                   onUpdateMealType={handleUpdateMealType}
+                  profile={profile}
+                  dailySteps={dailySteps}
+                  onLogSteps={handleLogSteps}
+                  waterIntake={waterIntake}
+                  onWaterIntakeChange={setWaterIntake}
+                  sleepHours={sleepHours}
+                  onSleepHoursChange={setSleepHours}
+                  mood={mood}
+                  onMoodChange={setMood}
+                  activeCalories={activeCalories}
+                  vitals={vitals}
+                  onUpdateVitals={handleUpdateVitals}
+                  lastSynced={lastSynced}
+                  onSyncData={handleSyncData}
+                  isTracking={isTracking}
+                  onStartTracking={handleStartTracking}
+                  onStopTracking={handleStopTracking}
                 />;
     }
   };

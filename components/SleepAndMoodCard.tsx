@@ -4,8 +4,8 @@ import { BedIcon } from './icons/BedIcon';
 interface SleepAndMoodCardProps {
   sleepHours: number;
   mood: 'Happy' | 'Neutral' | 'Sad';
-  setSleepHours: (hours: number) => void;
   setMood: (mood: 'Happy' | 'Neutral' | 'Sad') => void;
+  onSleepClick: () => void;
 }
 
 const moodEmojis = {
@@ -14,7 +14,7 @@ const moodEmojis = {
   Sad: '😔',
 };
 
-const SleepAndMoodCard: React.FC<SleepAndMoodCardProps> = ({ sleepHours, mood, setSleepHours, setMood }) => {
+const SleepAndMoodCard: React.FC<SleepAndMoodCardProps> = ({ sleepHours, mood, setMood, onSleepClick }) => {
   return (
     <div className="bg-card-light dark:bg-card-dark p-4 rounded-2xl shadow-lg flex flex-col justify-between">
       <div>
@@ -22,10 +22,10 @@ const SleepAndMoodCard: React.FC<SleepAndMoodCardProps> = ({ sleepHours, mood, s
           <BedIcon className="w-6 h-6 text-accent" />
           <h3 className="font-semibold text-text-secondary-light dark:text-text-secondary-dark">Sleep & Mood</h3>
         </div>
-        <div className="mt-3">
+        <button onClick={onSleepClick} className="w-full text-left mt-3">
           <span className="text-3xl font-bold text-text-primary-light dark:text-text-primary-dark">{sleepHours}</span>
           <span className="text-sm font-medium text-text-secondary-light dark:text-text-secondary-dark"> hours</span>
-        </div>
+        </button>
       </div>
       <div className="mt-4">
         <p className="text-xs font-medium text-text-secondary-light dark:text-text-secondary-dark mb-2">How are you feeling?</p>

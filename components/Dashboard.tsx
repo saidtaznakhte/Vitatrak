@@ -5,10 +5,10 @@ import HealthScore from './HealthScore';
 import LogMealModal from './LogMealModal';
 import WaterIntakeCard from './WaterIntakeCard';
 import SleepAndMoodCard from './SleepAndMoodCard';
-import FitnessSummaryCard from './FitnessSummaryCard';
+import ActivityCard from './ActivityCard';
 import LoggedMealItem from './LoggedMealItem';
 import { triggerHapticFeedback } from './utils/haptics';
-import type { Macro, LoggedMeal, MealNutritionInfo, MacroGoals } from '../types';
+import type { Macro, LoggedMeal, MealNutritionInfo, MacroGoals, UserProfile, DailySteps, Vitals } from '../types';
 import WaterIntakeModal from './WaterIntakeModal';
 import { AddIcon } from './icons/AddIcon';
 import QuickLogSuggestion from './QuickLogSuggestion';
@@ -19,13 +19,35 @@ import CombinedMacroChart from './CombinedMacroChart';
 import VitalsMonitor from './VitalsMonitor';
 import VitalsScanModal from './VitalsScanModal';
 import RecentlyUploaded from './RecentlyUploaded';
+import LogStepsModal from './LogStepsModal';
+import LogSleepModal from './LogSleepModal';
+import { SyncIcon } from './icons/SyncIcon';
+import SyncDataModal from './SyncDataModal';
+import { useFeedback } from '../contexts/FeedbackContext';
 
 interface DashboardProps {
   macroGoals: MacroGoals;
   loggedMeals: LoggedMeal[];
-  onLogMeal: (newMeals: MealNutritionInfo[], mealType: 'Breakfast' | 'Lunch' | 'Dinner' | 'Snack') => void;
+  onLogMeal: (newMeals: MealNutritionInfo[], mealType: 'Breakfast' | 'Lunch' | 'Dinner' | 'Snack', forDate: Date) => void;
   onDeleteMeal: (id: number) => void;
   onUpdateMealType: (id: number, newMealType: 'Breakfast' | 'Lunch' | 'Dinner' | 'Snack') => void;
+  profile: UserProfile;
+  dailySteps: DailySteps;
+  onLogSteps: (steps: number) => void;
+  waterIntake: number;
+  onWaterIntakeChange: (intake: number) => void;
+  sleepHours: number;
+  onSleepHoursChange: (hours: number) => void;
+  mood: 'Happy' | 'Neutral' | 'Sad';
+  onMoodChange: (mood: 'Happy' | 'Neutral' | 'Sad') => void;
+  activeCalories: number;
+  vitals: Vitals;
+  onUpdateVitals: (newVitals: Partial<Vitals>) => void;
+  lastSynced: string | null;
+  onSyncData: (data: { steps: number; sleep: number }) => void;
+  isTracking: boolean;
+  onStartTracking: () => void;
+  onStopTracking: () => void;
 }
 
 const MealDetailModal: React.FC<{ meal: LoggedMeal; onClose: () => void; onUpdateMealType: (id: number, newMealType: 'Breakfast' | 'Lunch' | 'Dinner' | 'Snack') => void; }> = ({ meal, onClose, onUpdateMealType }) => {
@@ -143,7 +165,15 @@ const MealDetailModal: React.FC<{ meal: LoggedMeal; onClose: () => void; onUpdat
 };
 
 
-const Dashboard: React.FC<DashboardProps> = ({ macroGoals, loggedMeals, onLogMeal, onDeleteMeal, onUpdateMealType }) => {
+const Dashboard: React.FC<DashboardProps> = (props) => {
+  const { 
+    macroGoals, loggedMeals, onLogMeal, onDeleteMeal, onUpdateMealType, profile, dailySteps, onLogSteps,
+    waterIntake, onWaterIntakeChange, sleepHours, onSleepHoursChange, mood, onMoodChange, activeCalories, vitals, onUpdateVitals,
+    lastSynced, onSyncData, isTracking, onStartTracking, onStopTracking
+  } = props;
+  
+  const { showSuccess } = useFeedback();
+
   const [isLogModalOpen, setIsLogModalOpen] = useState(false);
   const [isWaterModalOpen, setIsWaterModalOpen] = useState(false);
   const [isVitalsModalOpen, setIsVitalsModalOpen] = useState(false);
@@ -152,12 +182,15 @@ const Dashboard: React.FC<DashboardProps> = ({ macroGoals, loggedMeals, onLogMea
   const [selectedMealType, setSelectedMealType] = useState<'Breakfast' | 'Lunch' | 'Dinner' | 'Snack'>('Breakfast');
   const [currentDate, setCurrentDate] = useState(new Date());
   const [isCalendarModalOpen, setIsCalendarModalOpen] = useState(false);
+  const [isLogStepsModalOpen, setIsLogStepsModalOpen] = useState(false);
+  const [isLogSleepModalOpen, setIsLogSleepModalOpen] = useState(false);
+  const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
 
-  const [waterIntake, setWaterIntake] = useState(3);
-  const [sleepHours, setSleepHours] = useState(7.5);
-  const [mood, setMood] = useState<'Happy' | 'Neutral' | 'Sad'>('Happy');
+  const isToday = currentDate.toDateString() === new Date().toDateString();
+  const selectedDateString = currentDate.toISOString().split('T')[0];
+  const mealsForSelectedDate = loggedMeals.filter(meal => meal.date === selectedDateString);
 
-  const consumed = loggedMeals.reduce((acc, meal) => {
+  const consumed = mealsForSelectedDate.reduce((acc, meal) => {
     acc.Calories += meal.calories;
     acc.Protein += meal.protein;
     acc.Carbs += meal.carbs;
@@ -178,7 +211,7 @@ const Dashboard: React.FC<DashboardProps> = ({ macroGoals, loggedMeals, onLogMea
   };
 
   const calculateHealthScore = () => {
-    const nutritionScore = 6; // This could be made dynamic
+    const nutritionScore = consumed.Calories > 0 ? (consumed.Calories / macroGoals.Calories.goal) * 10 : 0;
     const hydrationScore = (waterIntake / 8) * 10;
     const sleepScore = (sleepHours / 8) * 10;
     const averageScore = (nutritionScore + hydrationScore + sleepScore) / 3;
@@ -202,14 +235,14 @@ const Dashboard: React.FC<DashboardProps> = ({ macroGoals, loggedMeals, onLogMea
   const handleCopyMeal = (id: number) => {
     const mealToCopy = loggedMeals.find(meal => meal.id === id);
     if (mealToCopy) {
-      const { id: mealId, mealType, ...mealNutrition } = mealToCopy;
-      onLogMeal([mealNutrition], mealType);
+      const { id: mealId, mealType, date, ...mealNutrition } = mealToCopy;
+      onLogMeal([mealNutrition], mealType, new Date()); // Copy to today
       alert(`Copied "${mealToCopy.name}" to today's log!`);
     }
   };
 
   const handleAddMeal = (newMeals: MealNutritionInfo[]) => {
-    onLogMeal(newMeals, selectedMealType);
+    onLogMeal(newMeals, selectedMealType, currentDate);
     setIsLogModalOpen(false);
   };
   
@@ -221,10 +254,48 @@ const Dashboard: React.FC<DashboardProps> = ({ macroGoals, loggedMeals, onLogMea
       setCurrentDate(date);
       setIsCalendarModalOpen(false);
   };
+  
+  const handleSaveSteps = (steps: number) => {
+    onLogSteps(steps);
+    setIsLogStepsModalOpen(false);
+  };
+
+  const handleSaveSleep = (hours: number) => {
+    onSleepHoursChange(hours);
+    setIsLogSleepModalOpen(false);
+  };
+
+  const handleSaveVitals = (newVitals: { heartRate: number; spO2: number }) => {
+    onUpdateVitals({
+      ...newVitals,
+      bloodPressure: '120/80', // Simulated value
+    });
+    setIsVitalsModalOpen(false);
+  };
+
+  const handleSaveSyncData = (data: { steps: number, sleep: number }) => {
+    onSyncData(data);
+    setIsSyncModalOpen(false);
+    showSuccess();
+  };
+
+  const formatTimeSince = (isoDate: string | null): string => {
+    if (!isoDate) return "Never";
+    const date = new Date(isoDate);
+    const now = new Date();
+    const diffSeconds = Math.round((now.getTime() - date.getTime()) / 1000);
+
+    if (diffSeconds < 60) return "Just now";
+    const diffMinutes = Math.round(diffSeconds / 60);
+    if (diffMinutes < 60) return `${diffMinutes}m ago`;
+    const diffHours = Math.round(diffMinutes / 60);
+    if (diffHours < 24) return `${diffHours}h ago`;
+    
+    return date.toLocaleDateString();
+  };
 
   const hour = new Date().getHours();
-  const isToday = currentDate.toDateString() === new Date().toDateString();
-  const showDinnerPredictor = hour >= 17 && hour < 22 && !loggedMeals.some(m => m.mealType === 'Dinner') && isToday;
+  const showDinnerPredictor = hour >= 17 && hour < 22 && !mealsForSelectedDate.some(m => m.mealType === 'Dinner') && isToday;
 
   const MacroStatCard: React.FC<{ label: string; consumed: number; goal: number; colorClass: string }> = ({ label, consumed, goal, colorClass }) => (
     <div className="bg-background-light dark:bg-card-dark p-3 rounded-lg text-center shadow-inner">
@@ -243,7 +314,15 @@ const Dashboard: React.FC<DashboardProps> = ({ macroGoals, loggedMeals, onLogMea
             <h1 className="text-3xl font-bold text-text-primary-light dark:text-text-primary-dark">{isToday ? "Welcome Back!" : currentDate.toLocaleDateString('en-US', { weekday: 'long' })}</h1>
             <p className="text-text-secondary-light dark:text-text-secondary-dark">{isToday ? "Here's your health snapshot." : currentDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
           </div>
-          <img src="https://picsum.photos/40/40" alt="User Avatar" className="w-10 h-10 rounded-full" />
+          <div className="flex items-center space-x-2">
+            <button onClick={() => setIsSyncModalOpen(true)} className="flex items-center space-x-2 p-2 bg-card-light dark:bg-card-dark rounded-full shadow-md text-xs font-semibold text-accent transition-colors hover:bg-gray-100 dark:hover:bg-white/10">
+              <SyncIcon className="w-5 h-5" />
+              <span className="pr-2 whitespace-nowrap">
+                Synced: {formatTimeSince(lastSynced)}
+              </span>
+            </button>
+            <img src={profile.avatarUrl} alt="User Avatar" className="w-10 h-10 rounded-full" />
+          </div>
         </header>
         
         <button onClick={() => setIsCalendarModalOpen(true)} className="w-full text-left active:scale-[0.98] transition-transform duration-200">
@@ -288,7 +367,7 @@ const Dashboard: React.FC<DashboardProps> = ({ macroGoals, loggedMeals, onLogMea
         
         <div>
           <h2 className="text-xl font-bold text-text-primary-light dark:text-text-primary-dark mb-4">Vitals Monitor</h2>
-          <VitalsMonitor onScan={() => setIsVitalsModalOpen(true)} />
+          <VitalsMonitor vitals={vitals} onScan={() => setIsVitalsModalOpen(true)} />
         </div>
 
         <div>
@@ -297,25 +376,25 @@ const Dashboard: React.FC<DashboardProps> = ({ macroGoals, loggedMeals, onLogMea
             <button onClick={() => setIsWaterModalOpen(true)} className="transition-transform duration-200 active:scale-95">
               <WaterIntakeCard intake={waterIntake} goal={8} />
             </button>
-            <SleepAndMoodCard sleepHours={sleepHours} mood={mood} setSleepHours={setSleepHours} setMood={setMood} />
-             <FitnessSummaryCard steps={8452} activeCalories={350} />
-            <div className="bg-card-light dark:bg-card-dark p-4 rounded-2xl shadow-lg flex flex-col items-center justify-center">
-                 <div className="text-center">
-                    <p className="text-xl font-bold text-red-500">350</p>
-                    <p className="text-xs text-text-secondary-light dark:text-text-secondary-dark">Burned kcal</p>
-                 </div>
-                 <p className="text-xs text-center mt-2 text-text-secondary-light dark:text-text-secondary-dark">From Apple Health</p>
-            </div>
+            <SleepAndMoodCard sleepHours={sleepHours} mood={mood} onSleepHoursChange={onSleepHoursChange} setMood={onMoodChange} onSleepClick={() => setIsLogSleepModalOpen(true)} />
+             <ActivityCard 
+                steps={isToday ? dailySteps.steps : 0} 
+                activeCalories={isToday ? activeCalories : 0} 
+                onStepsClick={() => setIsLogStepsModalOpen(true)}
+                isTracking={isTracking}
+                onStartTracking={onStartTracking}
+                onStopTracking={onStopTracking}
+             />
           </div>
         </div>
         
         <div>
           <h2 className="text-xl font-bold text-text-primary-light dark:text-text-primary-dark mb-4">
-            {isToday && loggedMeals.length > 0 ? "Today's Log" : "Recently uploaded"}
+            Meals for {isToday ? 'Today' : currentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
           </h2>
-          {isToday && loggedMeals.length > 0 ? (
+          {mealsForSelectedDate.length > 0 ? (
             <div className="space-y-3">
-              {loggedMeals.map(meal => (
+              {mealsForSelectedDate.map(meal => (
                 <LoggedMealItem key={meal.id} meal={meal} onDelete={handleDeleteMeal} onCopy={handleCopyMeal} onClick={handleViewMealDetails} />
               ))}
             </div>
@@ -345,7 +424,7 @@ const Dashboard: React.FC<DashboardProps> = ({ macroGoals, loggedMeals, onLogMea
             currentIntake={waterIntake}
             goal={8}
             onClose={() => setIsWaterModalOpen(false)}
-            onIntakeChange={setWaterIntake}
+            onIntakeChange={onWaterIntakeChange}
         />
       )}
       {isQuickLogOpen && (
@@ -372,7 +451,29 @@ const Dashboard: React.FC<DashboardProps> = ({ macroGoals, loggedMeals, onLogMea
         />
       )}
       {isVitalsModalOpen && (
-        <VitalsScanModal onClose={() => setIsVitalsModalOpen(false)} />
+        <VitalsScanModal onClose={() => setIsVitalsModalOpen(false)} onSave={handleSaveVitals} />
+      )}
+      {isLogStepsModalOpen && (
+        <LogStepsModal
+          currentSteps={dailySteps.steps}
+          onClose={() => setIsLogStepsModalOpen(false)}
+          onSave={handleSaveSteps}
+        />
+      )}
+      {isLogSleepModalOpen && (
+        <LogSleepModal
+          currentHours={sleepHours}
+          onClose={() => setIsLogSleepModalOpen(false)}
+          onSave={handleSaveSleep}
+        />
+      )}
+      {isSyncModalOpen && (
+        <SyncDataModal
+          currentSteps={dailySteps.steps}
+          currentSleep={sleepHours}
+          onClose={() => setIsSyncModalOpen(false)}
+          onSave={handleSaveSyncData}
+        />
       )}
     </>
   );

@@ -5,9 +5,10 @@ import { SparkleIcon } from './icons/SparkleIcon';
 
 interface VitalsScanModalProps {
   onClose: () => void;
+  onSave: (vitals: { heartRate: number; spO2: number }) => void;
 }
 
-const VitalsScanModal: React.FC<VitalsScanModalProps> = ({ onClose }) => {
+const VitalsScanModal: React.FC<VitalsScanModalProps> = ({ onClose, onSave }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [scanState, setScanState] = useState<'idle' | 'scanning' | 'complete' | 'permissionDenied' | 'error'>('idle');
   const [vitals, setVitals] = useState<{ heartRate: number; spO2: number } | null>(null);
@@ -53,7 +54,14 @@ const VitalsScanModal: React.FC<VitalsScanModalProps> = ({ onClose }) => {
         stream.getTracks().forEach(track => track.stop());
       }
     };
-  }, [onClose, retry]);
+  }, [retry]);
+  
+  const handleUpdate = () => {
+      if (vitals) {
+          onSave(vitals);
+      }
+      onClose();
+  }
 
   const handleRetry = () => {
     setRetry(r => r + 1);
@@ -96,7 +104,7 @@ const VitalsScanModal: React.FC<VitalsScanModalProps> = ({ onClose }) => {
                     <p className="text-2xl font-bold">{vitals.spO2}<span className="text-base font-normal">%</span></p>
                 </div>
             </div>
-            <button onClick={onClose} className="w-full mt-6 bg-accent text-white font-bold py-3 px-4 rounded-lg flex items-center justify-center">
+            <button onClick={handleUpdate} className="w-full mt-6 bg-accent text-white font-bold py-3 px-4 rounded-lg flex items-center justify-center">
               <SparkleIcon className="w-5 h-5 mr-2" />
               Update Vitals
             </button>

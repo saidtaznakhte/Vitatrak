@@ -33,6 +33,7 @@ export interface LoggedMeal {
   protein: number;
   carbs: number;
   fats: number;
+  date: string; // YYYY-MM-DD
 }
 
 export interface MealNutritionInfo {
@@ -62,4 +63,26 @@ export interface WeightEntry {
   id: number;
   date: string; // ISO string
   weight: number;
+}
+
+export interface UserProfile {
+  name: string;
+  age: number;
+  avatarUrl?: string;
+}
+
+export type ChartDataPoint = {
+  name: string;
+  weight: number;
+};
+
+export interface DailySteps {
+  date: string; // YYYY-MM-DD
+  steps: number;
+}
+
+export interface Vitals {
+  heartRate: number | null;
+  spO2: number | null;
+  bloodPressure: string | null;
 }

@@ -2,6 +2,7 @@ import React from 'react';
 import ShareableReport from './ShareableReport';
 import { XMarkIcon } from './icons/XMarkIcon';
 import { ShareIcon } from './icons/ShareIcon';
+import type { ChartDataPoint } from '../types';
 
 interface ShareModalProps {
   onClose: () => void;
@@ -10,7 +11,7 @@ interface ShareModalProps {
   streak: number;
   currentWeight: number;
   weightChange: number;
-  weightData: { name: string; weight: number }[];
+  weightData: ChartDataPoint[];
 }
 
 const ShareModal: React.FC<ShareModalProps> = ({

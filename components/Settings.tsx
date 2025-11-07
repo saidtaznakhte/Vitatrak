@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import type { Theme, MacroGoals, WeightEntry } from '../types';
+import type { Theme, MacroGoals, WeightEntry, UserProfile } from '../types';
 import ProfileHeader from './settings/ProfileHeader';
 import InviteCard from './settings/InviteCard';
 import SettingsSection from './settings/SettingsSection';
@@ -9,6 +9,7 @@ import AdjustMacrosModal from './settings/AdjustMacrosModal';
 import { useFeedback } from '../contexts/FeedbackContext';
 import GoalWeightModal from './settings/GoalWeightModal';
 import WeightHistoryModal from './settings/WeightHistoryModal';
+import EditProfileModal from './settings/EditProfileModal';
 
 interface SettingsProps {
   currentTheme: Theme;
@@ -20,12 +21,17 @@ interface SettingsProps {
   onUpdateWeightAndGoal: (newCurrent: number, newGoal: number) => void;
   weightData: WeightEntry[];
   onDeleteWeightEntry: (id: number) => void;
+  profile: UserProfile;
+  onUpdateProfile: (newProfile: UserProfile) => void;
 }
 
-const Settings: React.FC<SettingsProps> = ({ currentTheme, toggleTheme, macroGoals, setMacroGoals, currentWeight, goalWeight, onUpdateWeightAndGoal, weightData, onDeleteWeightEntry }) => {
+const Settings: React.FC<SettingsProps> = ({ 
+  currentTheme, toggleTheme, macroGoals, setMacroGoals, currentWeight, goalWeight, onUpdateWeightAndGoal, weightData, onDeleteWeightEntry, profile, onUpdateProfile 
+}) => {
   const [isMacrosModalOpen, setIsMacrosModalOpen] = useState(false);
   const [isGoalWeightModalOpen, setIsGoalWeightModalOpen] = useState(false);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+  const [isEditProfileModalOpen, setIsEditProfileModalOpen] = useState(false);
   const { showSuccess } = useFeedback();
 
   const handleSaveMacros = (newGoals: MacroGoals) => {
@@ -37,6 +43,12 @@ const Settings: React.FC<SettingsProps> = ({ currentTheme, toggleTheme, macroGoa
   const handleSaveWeightAndGoal = (newCurrent: number, newGoal: number) => {
     onUpdateWeightAndGoal(newCurrent, newGoal);
     setIsGoalWeightModalOpen(false);
+    showSuccess();
+  };
+
+  const handleSaveProfile = (newProfile: UserProfile) => {
+    onUpdateProfile(newProfile);
+    setIsEditProfileModalOpen(false);
     showSuccess();
   };
   
@@ -53,7 +65,12 @@ const Settings: React.FC<SettingsProps> = ({ currentTheme, toggleTheme, macroGoa
           <p className="text-text-secondary-light dark:text-text-secondary-dark">Customize your app experience.</p>
         </header>
 
-        <ProfileHeader name="Mahdi Alt" age={20} avatarUrl="https://picsum.photos/40/40" />
+        <ProfileHeader 
+          name={profile.name} 
+          age={profile.age} 
+          avatarUrl={profile.avatarUrl}
+          onClick={() => setIsEditProfileModalOpen(true)}
+        />
         
         <InviteCard />
 
@@ -124,6 +141,14 @@ const Settings: React.FC<SettingsProps> = ({ currentTheme, toggleTheme, macroGoa
           history={weightData}
           onClose={() => setIsHistoryModalOpen(false)}
           onDelete={handleDeleteWeight}
+        />
+      )}
+
+      {isEditProfileModalOpen && (
+        <EditProfileModal
+          profile={profile}
+          onClose={() => setIsEditProfileModalOpen(false)}
+          onSave={handleSaveProfile}
         />
       )}
     </>

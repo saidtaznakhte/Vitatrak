@@ -1,7 +1,7 @@
 import React from 'react';
-import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, AreaChart, Area } from 'recharts';
+import { ResponsiveContainer, AreaChart, Area, YAxis } from 'recharts';
 import { FlameIcon } from './icons/FlameIcon';
-import type { WeightEntry } from '../types';
+import type { ChartDataPoint } from '../types';
 
 interface ShareableReportProps {
   userName: string;
@@ -9,7 +9,7 @@ interface ShareableReportProps {
   streak: number;
   currentWeight: number;
   weightChange: number;
-  weightData: WeightEntry[];
+  weightData: ChartDataPoint[];
 }
 
 const ShareableReport: React.FC<ShareableReportProps> = ({
@@ -20,18 +20,12 @@ const ShareableReport: React.FC<ShareableReportProps> = ({
   weightChange,
   weightData,
 }) => {
-  const isDarkMode = document.documentElement.classList.contains('dark');
   const weightChangeText = weightChange < 0 ? `${weightChange.toFixed(1)} lbs` : `+${weightChange.toFixed(1)} lbs`;
-
-  const chartData = weightData.slice(-30).map(entry => ({
-    name: new Date(entry.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-    weight: entry.weight
-  }));
 
   return (
     <div className="bg-card-light dark:bg-card-dark p-5 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700">
       <div className="flex items-center space-x-3 mb-4">
-        <img src={avatarUrl} alt={userName} className="w-12 h-12 rounded-full" />
+        <img src={avatarUrl} alt={userName} className="w-12 h-12 rounded-full object-cover" />
         <div>
           <p className="font-bold text-lg text-text-primary-light dark:text-text-primary-dark">{userName}</p>
           <p className="text-sm text-text-secondary-light dark:text-text-secondary-dark">is making progress!</p>
@@ -40,7 +34,7 @@ const ShareableReport: React.FC<ShareableReportProps> = ({
 
       <div className="h-28 w-full mb-4">
         <ResponsiveContainer>
-          <AreaChart data={chartData} margin={{ top: 5, right: 0, left: 0, bottom: 5 }}>
+          <AreaChart data={weightData} margin={{ top: 5, right: 0, left: 0, bottom: 5 }}>
             <defs>
               <linearGradient id="colorUv" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%" stopColor="#00A99D" stopOpacity={0.4}/>

@@ -6,7 +6,7 @@ import Achievements from './Achievements';
 import { Streak7Icon } from './icons/Streak7Icon';
 import { WeightLossIcon } from './icons/WeightLossIcon';
 import { PerfectDayIcon } from './icons/PerfectDayIcon';
-import type { Achievement, WeightEntry } from '../types';
+import type { Achievement, WeightEntry, UserProfile, ChartDataPoint } from '../types';
 import { CelebrationContext } from '../contexts/CelebrationContext';
 import { ShareIcon } from './icons/ShareIcon';
 import ShareModal from './ShareModal';
@@ -17,7 +17,7 @@ import { triggerHapticFeedback } from './utils/haptics';
 const periods = ['90 Days', '6 Months', '1 Year', 'All Time'];
 const weekDays = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
-const processDataForChart = (data: WeightEntry[]): { name: string, weight: number }[] => {
+const processDataForChart = (data: WeightEntry[]): ChartDataPoint[] => {
   if (!data || data.length === 0) return [];
   
   const monthlyData: { [key: string]: { weights: number[], lastDate: Date } } = {};
@@ -89,9 +89,10 @@ interface ProgressProps {
   weightData: WeightEntry[];
   goalWeight: number;
   onLogWeight: (newWeight: number) => void;
+  profile: UserProfile;
 }
 
-const Progress: React.FC<ProgressProps> = ({ weightData, goalWeight, onLogWeight }) => {
+const Progress: React.FC<ProgressProps> = ({ weightData, goalWeight, onLogWeight, profile }) => {
   const [activePeriod, setActivePeriod] = useState('1 Year');
   const [isLogWeightModalOpen, setIsLogWeightModalOpen] = useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
@@ -247,12 +248,12 @@ const Progress: React.FC<ProgressProps> = ({ weightData, goalWeight, onLogWeight
       {isShareModalOpen && (
           <ShareModal 
               onClose={() => setIsShareModalOpen(false)}
-              userName="Mahdi Alt"
-              avatarUrl="https://picsum.photos/40/40"
+              userName={profile.name}
+              avatarUrl={profile.avatarUrl}
               streak={streak}
               currentWeight={currentWeight}
               weightChange={currentWeight - initialWeight}
-              weightData={weightData}
+              weightData={chartData}
           />
       )}
       {isLogWeightModalOpen && (
