@@ -147,7 +147,9 @@ const App: React.FC = () => {
     
     // PWA Install Prompt Listener
     const handleBeforeInstallPrompt = (e: any) => {
+      // Prevent the mini-infobar from appearing on mobile
       e.preventDefault();
+      // Stash the event so it can be triggered later.
       setDeferredPrompt(e);
     };
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
@@ -378,6 +380,8 @@ const App: React.FC = () => {
                   currentWeight={currentWeight}
                   goalWeight={goalWeight}
                   setIsModalOpen={setIsModalOpen}
+                  installPrompt={deferredPrompt}
+                  onInstall={handleInstallClick}
                 />;
       case 'progress':
         return <Progress 
@@ -434,6 +438,8 @@ const App: React.FC = () => {
                   currentWeight={currentWeight}
                   goalWeight={goalWeight}
                   setIsModalOpen={setIsModalOpen}
+                  installPrompt={deferredPrompt}
+                  onInstall={handleInstallClick}
                 />;
     }
   };

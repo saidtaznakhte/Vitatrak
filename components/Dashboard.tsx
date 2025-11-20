@@ -52,6 +52,8 @@ interface DashboardProps {
   currentWeight: number;
   goalWeight: number;
   setIsModalOpen: (isOpen: boolean) => void;
+  installPrompt?: any;
+  onInstall?: () => void;
 }
 
 const MealDetailModal: React.FC<{ meal: LoggedMeal; onClose: () => void; onUpdateMealType: (id: number, newMealType: 'Breakfast' | 'Lunch' | 'Dinner' | 'Snack') => void; }> = ({ meal, onClose, onUpdateMealType }) => {
@@ -174,7 +176,7 @@ const Dashboard: React.FC<DashboardProps> = (props) => {
     macroGoals, loggedMeals, onLogMeal, onDeleteMeal, onUpdateMealType, profile, dailySteps, onLogSteps,
     waterIntake, onWaterIntakeChange, sleepHours, onSleepHoursChange, mood, onMoodChange, activeCalories, vitals, onUpdateVitals,
     lastSynced, onSyncData, isTracking, onStartTracking, onStopTracking,
-    currentWeight, goalWeight, setIsModalOpen
+    currentWeight, goalWeight, setIsModalOpen, installPrompt, onInstall
   } = props;
   
   const { showSuccess } = useFeedback();
@@ -336,6 +338,21 @@ const Dashboard: React.FC<DashboardProps> = (props) => {
         </div>
         <img src={profile.avatarUrl} alt={profile.name} className="w-12 h-12 rounded-full" />
       </header>
+
+      {installPrompt && onInstall && (
+        <div className="bg-accent text-white p-4 rounded-2xl shadow-lg flex justify-between items-center animate-fade-in">
+          <div>
+            <h3 className="font-bold text-lg">Install VitaTrack</h3>
+            <p className="text-sm opacity-90">Get the best experience</p>
+          </div>
+          <button
+            onClick={onInstall}
+            className="bg-white text-accent font-bold py-2 px-4 rounded-lg hover:bg-gray-100 transition-colors shadow-md"
+          >
+            Install App
+          </button>
+        </div>
+      )}
 
       <button onClick={() => setIsCalendarModalOpen(true)} className="w-full">
         <WeeklyCalendar selectedDate={currentDate} />
