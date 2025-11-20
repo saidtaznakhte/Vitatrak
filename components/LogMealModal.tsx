@@ -55,7 +55,7 @@ const LogMealModal: React.FC<LogMealModalProps> = ({ mealType, onClose, onAddMea
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       
-      const prompt = `Use Google Search to find accurate nutritional information for the food query in English or Arabic: '${query}'. Provide a list of common variations and serving sizes with their nutritional information (calories, protein, carbs, fats). Return a JSON array of objects, where each object has 'name', 'calories', 'protein', 'carbs', and 'fats'. The 'name' should be in the same language as the query. If the query is a number (like a barcode), try to find the product. Provide up to 5 results. If you can't find the food, return an empty array. IMPORTANT: Your entire response must be ONLY the JSON array, with no other text, markdown, or explanations.`;
+      const prompt = `Use Google Search to find accurate nutritional information for the food query: '${query}'. Provide a list of common variations and serving sizes with their nutritional information (calories, protein, carbs, fats). Return a JSON array of objects, where each object has 'name', 'calories', 'protein', 'carbs', and 'fats'. Provide up to 5 results. If you can't find the food, return an empty array. IMPORTANT: Your entire response must be ONLY the JSON array, with no other text, markdown, or explanations.`;
 
       const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash',
