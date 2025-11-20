@@ -2,8 +2,8 @@
 {
   "name": "VitaTrack",
   "short_name": "VitaTrack",
-  "start_url": "index.html",
-  "scope": ".",
+  "start_url": "./index.html",
+  "scope": "./",
   "display": "standalone",
   "background_color": "#121212",
   "theme_color": "#00A99D",

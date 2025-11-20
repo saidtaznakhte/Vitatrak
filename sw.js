@@ -1,10 +1,9 @@
 
-const CACHE_NAME = 'vitatrack-v8';
+const CACHE_NAME = 'vitatrack-v9';
 const URLS_TO_CACHE = [
   './index.html',
   './manifest.json',
-  './logo.svg',
-  './index.tsx'
+  './logo.svg'
 ];
 
 self.addEventListener('install', (event) => {
