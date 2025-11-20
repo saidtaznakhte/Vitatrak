@@ -1,8 +1,7 @@
-const CACHE_NAME = 'vitatrack-v4';
+const CACHE_NAME = 'vitatrack-v5';
 const URLS_TO_CACHE = [
   './',
   './index.html',
-  './index.tsx',
   './manifest.json',
   './logo.svg',
   'https://cdn.tailwindcss.com'
@@ -12,8 +11,6 @@ self.addEventListener('install', (event) => {
   self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      // We use addAll but catch errors for individual resources if they fail (like external CORS issues)
-      // forcing the essential local files to be cached.
       return Promise.all(
         URLS_TO_CACHE.map(url => {
           return cache.add(url).catch(err => {
@@ -37,7 +34,7 @@ self.addEventListener('fetch', (event) => {
 
       return fetch(event.request).then((response) => {
         // Check if we received a valid response
-        if (!response || (response.status !== 200 && response.status !== 0)) {
+        if (!response || (response.status !== 200 && response.type !== 'opaque')) {
           return response;
         }
 
@@ -49,7 +46,7 @@ self.addEventListener('fetch', (event) => {
 
         return response;
       }).catch(() => {
-        // Fallback for navigation requests
+        // Fallback for navigation requests to the index page
         if (event.request.mode === 'navigate') {
             return caches.match('./index.html');
         }
