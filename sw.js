@@ -1,13 +1,11 @@
-
-const CACHE_NAME = 'vitatrack-v3';
+const CACHE_NAME = 'vitatrack-v4';
 const URLS_TO_CACHE = [
   './',
   './index.html',
   './index.tsx',
   './manifest.json',
-  'https://cdn.tailwindcss.com',
-  'https://img.icons8.com/fluency/192/heart-health.png',
-  'https://img.icons8.com/fluency/512/heart-health.png'
+  './logo.svg',
+  'https://cdn.tailwindcss.com'
 ];
 
 self.addEventListener('install', (event) => {
