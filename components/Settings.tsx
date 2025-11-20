@@ -25,10 +25,12 @@ interface SettingsProps {
   onDeleteWeightEntry: (id: number) => void;
   profile: UserProfile;
   onUpdateProfile: (newProfile: UserProfile) => void;
+  installPrompt?: any;
+  onInstall?: () => void;
 }
 
 const Settings: React.FC<SettingsProps> = ({ 
-  currentTheme, toggleTheme, macroGoals, setMacroGoals, currentWeight, goalWeight, onUpdateWeightAndGoal, weightData, onDeleteWeightEntry, profile, onUpdateProfile 
+  currentTheme, toggleTheme, macroGoals, setMacroGoals, currentWeight, goalWeight, onUpdateWeightAndGoal, weightData, onDeleteWeightEntry, profile, onUpdateProfile, installPrompt, onInstall
 }) => {
   const [isMacrosModalOpen, setIsMacrosModalOpen] = useState(false);
   const [isGoalWeightModalOpen, setIsGoalWeightModalOpen] = useState(false);
@@ -77,6 +79,21 @@ const Settings: React.FC<SettingsProps> = ({
           onClick={() => setIsEditProfileModalOpen(true)}
         />
         
+        {installPrompt && onInstall && (
+             <div className="bg-card-light dark:bg-card-dark rounded-2xl shadow-lg p-4 flex items-center justify-between">
+                <div>
+                    <h3 className="font-semibold text-text-primary-light dark:text-text-primary-dark">Install App</h3>
+                    <p className="text-xs text-text-secondary-light dark:text-text-secondary-dark">Get the best experience</p>
+                </div>
+                <button 
+                    onClick={onInstall}
+                    className="bg-accent text-white text-sm font-bold py-2 px-4 rounded-lg hover:bg-accent/90 transition-colors"
+                >
+                    Install
+                </button>
+            </div>
+        )}
+        
         <InviteCard />
 
         <SettingsSection title="Personal Details">
@@ -120,7 +137,7 @@ const Settings: React.FC<SettingsProps> = ({
         </div>
         
         <p className="text-center text-xs text-text-secondary-light dark:text-text-secondary-dark pt-4">
-          VERSION 1.0.100
+          VERSION 1.0.101
         </p>
       </div>
 

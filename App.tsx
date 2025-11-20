@@ -61,6 +61,9 @@ const App: React.FC = () => {
   const [locationWatchId, setLocationWatchId] = useState<number | null>(null);
   const lastPositionRef = useRef<GeolocationPosition | null>(null);
 
+  // PWA Install Prompt
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+
 
   useEffect(() => {
     const savedTheme = localStorage.getItem('theme') as Theme | null;
@@ -141,6 +144,14 @@ const App: React.FC = () => {
     
     const savedLastSynced = localStorage.getItem('lastSynced');
     if (savedLastSynced) setLastSynced(JSON.parse(savedLastSynced));
+    
+    // PWA Install Prompt Listener
+    const handleBeforeInstallPrompt = (e: any) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
 
   }, []);
 
@@ -324,6 +335,18 @@ const App: React.FC = () => {
     lastPositionRef.current = null;
   };
 
+  const handleInstallClick = () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      deferredPrompt.userChoice.then((choiceResult: any) => {
+        if (choiceResult.outcome === 'accepted') {
+          console.log('User accepted the install prompt');
+        }
+        setDeferredPrompt(null);
+      });
+    }
+  };
+
   const currentWeight = weightData.length > 0 ? weightData[weightData.length - 1].weight : 0; // This is in kg
 
   const renderView = () => {
@@ -381,6 +404,8 @@ const App: React.FC = () => {
                   onDeleteWeightEntry={handleDeleteWeightEntry}
                   profile={profile}
                   onUpdateProfile={handleUpdateProfile}
+                  installPrompt={deferredPrompt}
+                  onInstall={handleInstallClick}
                 />;
       default:
         return <Dashboard 

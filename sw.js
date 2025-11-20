@@ -1,9 +1,10 @@
 
-const CACHE_NAME = 'vitatrack-v1';
+const CACHE_NAME = 'vitatrack-v2';
 const URLS_TO_CACHE = [
   '/',
   '/index.html',
-  '/index.tsx'
+  '/index.tsx',
+  '/manifest.json'
 ];
 
 self.addEventListener('install', (event) => {
@@ -16,26 +17,40 @@ self.addEventListener('install', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
+  // Only handle GET requests
+  if (event.request.method !== 'GET') return;
+
   event.respondWith(
-    fetch(event.request)
-      .then((response) => {
-        // Check if we received a valid response
-        if (!response || response.status !== 200) {
+    caches.match(event.request).then((cachedResponse) => {
+      // Return cached response if found
+      if (cachedResponse) {
+        return cachedResponse;
+      }
+
+      // Otherwise fetch from network
+      return fetch(event.request).then((response) => {
+        // Check if we received a valid response. 
+        // We accept opaque responses (status 0) for CDN assets like images/scripts.
+        if (!response || (response.status !== 200 && response.status !== 0)) {
           return response;
         }
 
-        // Clone the response to cache it
+        // Clone the response
         const responseToCache = response.clone();
+
+        // Cache the new resource
         caches.open(CACHE_NAME).then((cache) => {
           cache.put(event.request, responseToCache);
         });
 
         return response;
-      })
-      .catch(() => {
-        // If network fails, try to serve from cache
-        return caches.match(event.request);
-      })
+      }).catch(() => {
+        // Fallback for navigation requests to index.html if offline
+        if (event.request.mode === 'navigate') {
+            return caches.match('/index.html');
+        }
+      });
+    })
   );
 });
 
@@ -52,4 +67,5 @@ self.addEventListener('activate', (event) => {
       );
     })
   );
+  self.clients.claim();
 });
