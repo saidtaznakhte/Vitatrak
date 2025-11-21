@@ -1,4 +1,4 @@
-const CACHE_NAME = 'vitatrack-v12';
+const CACHE_NAME = 'vitatrack-v13';
 const URLS_TO_CACHE = [
   './',
   './index.html',
@@ -43,8 +43,10 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(
     fetch(event.request)
       .then((response) => {
-        // If valid network response, clone and cache it
-        if (response && response.status === 200 && response.type === 'basic') {
+        // CRITICAL CHANGE: 
+        // allow response.type === 'cors' to cache external CDNs (React, Tailwind, etc.)
+        // allow response.type === 'basic' for same-origin files
+        if (response && response.status === 200 && (response.type === 'basic' || response.type === 'cors')) {
           const responseToCache = response.clone();
           caches.open(CACHE_NAME).then((cache) => {
             cache.put(event.request, responseToCache);
@@ -66,6 +68,8 @@ self.addEventListener('fetch', (event) => {
             if (event.request.mode === 'navigate') {
               return caches.match('./index.html');
             }
+            
+            return null;
           });
       })
   );
