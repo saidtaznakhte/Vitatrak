@@ -1,101 +1,79 @@
-
-const CACHE_NAME = 'vitatrack-v10';
-
-// Core assets that MUST be present for the app to look like an app (static files)
-const CORE_ASSETS = [
+const CACHE_NAME = 'vitatrack-v11';
+const URLS_TO_CACHE = [
+  './index.html',
   './logo.svg',
   './manifest.json'
 ];
 
-// Assets that are important but might fail in some environments during install
-// We try to cache them, but don't fail the installation if they are missing initially.
-// They will be cached upon first successful load via the Network-First strategy.
-const OPTIONAL_ASSETS = [
-  './',
-  './index.html',
-  './index.tsx'
-];
-
+// Install: Cache only the core shell files. 
+// We do NOT cache .tsx files here to prevent 404 errors during installation 
+// in environments where build artifacts are dynamic.
 self.addEventListener('install', (event) => {
-  self.skipWaiting(); // Take over immediately
+  self.skipWaiting();
   event.waitUntil(
-    caches.open(CACHE_NAME).then(async (cache) => {
-      // 1. Cache core assets - fail installation if these fail
-      await cache.addAll(CORE_ASSETS);
-      
-      // 2. Try to cache optional assets, but don't fail installation if they are missing
-      // This fixes "404 code not found" errors during SW installation on some servers
-      await Promise.all(
-        OPTIONAL_ASSETS.map(url => 
-          cache.add(url).catch(err => console.warn(`SW: Failed to pre-cache ${url}:`, err))
-        )
-      );
+    caches.open(CACHE_NAME).then((cache) => {
+      console.log('[ServiceWorker] Pre-caching core assets');
+      return cache.addAll(URLS_TO_CACHE);
     })
   );
 });
 
+// Activate: Clean up old caches
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((cacheName) => {
           if (cacheName !== CACHE_NAME) {
+            console.log('[ServiceWorker] Deleting old cache:', cacheName);
             return caches.delete(cacheName);
           }
         })
       );
     })
   );
-  self.clients.claim(); // Control open clients immediately
+  self.clients.claim();
 });
 
+// Fetch: Network First, then Cache, then Offline Fallback
 self.addEventListener('fetch', (event) => {
-  // Only handle GET requests
-  if (event.request.method !== 'GET') return;
-
-  // Ignore non-http requests (like chrome-extension://)
+  // Skip cross-origin requests (like CDN) from strict caching to avoid CORS issues,
+  // unless we want to handle opaque responses. For this app, we focus on local code.
+  // We also only handle HTTP/HTTPS requests.
   if (!event.request.url.startsWith('http')) return;
 
   event.respondWith(
-    (async () => {
-      try {
-        // NETWORK FIRST STRATEGY
-        // Try to get the freshest content from the network
-        const networkResponse = await fetch(event.request);
-        
-        // Check if we got a valid response
-        if (networkResponse && networkResponse.status === 200) {
-          const responseToCache = networkResponse.clone();
-          const cache = await caches.open(CACHE_NAME);
-          cache.put(event.request, responseToCache);
-          return networkResponse;
-        }
-        
-        // SPA FALLBACK:
-        // If network returned 404 and it's a navigation request (e.g. /dashboard),
-        // return the cached index.html so React Router can handle it.
-        if (networkResponse && networkResponse.status === 404 && event.request.mode === 'navigate') {
-           const cachedIndex = await caches.match('./index.html');
-           if (cachedIndex) return cachedIndex;
+    fetch(event.request)
+      .then((response) => {
+        // Check if we received a valid response
+        if (!response || response.status !== 200 || response.type !== 'basic') {
+          return response;
         }
 
-        return networkResponse;
-      } catch (error) {
-        // OFFLINE FALLBACK
-        // Network failed (offline), try cache
-        const cachedResponse = await caches.match(event.request);
-        if (cachedResponse) {
-          return cachedResponse;
-        }
-        
-        // If request is for a page navigation and not in cache, return index.html
-        if (event.request.mode === 'navigate') {
-          const cachedIndex = await caches.match('./index.html');
-          if (cachedIndex) return cachedIndex;
-        }
-        
-        throw error;
-      }
-    })()
+        // Clone the response because it's a stream and can only be consumed once
+        const responseToCache = response.clone();
+
+        caches.open(CACHE_NAME)
+          .then((cache) => {
+            cache.put(event.request, responseToCache);
+          });
+
+        return response;
+      })
+      .catch(() => {
+        // Network failed, try the cache
+        return caches.match(event.request)
+          .then((response) => {
+            if (response) {
+              return response;
+            }
+            
+            // SPA Fallback: If it's a navigation request (e.g. /settings) and we are offline,
+            // serve index.html so the React app can load.
+            if (event.request.mode === 'navigate') {
+              return caches.match('./index.html');
+            }
+          });
+      })
   );
 });
