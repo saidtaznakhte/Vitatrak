@@ -1,13 +1,12 @@
-const CACHE_NAME = 'vitatrack-v11';
+const CACHE_NAME = 'vitatrack-v12';
 const URLS_TO_CACHE = [
+  './',
   './index.html',
   './logo.svg',
   './manifest.json'
 ];
 
-// Install: Cache only the core shell files. 
-// We do NOT cache .tsx files here to prevent 404 errors during installation 
-// in environments where build artifacts are dynamic.
+// Install: Cache core assets immediately
 self.addEventListener('install', (event) => {
   self.skipWaiting();
   event.waitUntil(
@@ -35,41 +34,35 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// Fetch: Network First, then Cache, then Offline Fallback
+// Fetch: Network First -> Cache -> Offline Fallback
 self.addEventListener('fetch', (event) => {
-  // Skip cross-origin requests (like CDN) from strict caching to avoid CORS issues,
-  // unless we want to handle opaque responses. For this app, we focus on local code.
-  // We also only handle HTTP/HTTPS requests.
+  // Only handle http/https requests
   if (!event.request.url.startsWith('http')) return;
 
+  // Strategy: Try Network First
   event.respondWith(
     fetch(event.request)
       .then((response) => {
-        // Check if we received a valid response
-        if (!response || response.status !== 200 || response.type !== 'basic') {
-          return response;
-        }
-
-        // Clone the response because it's a stream and can only be consumed once
-        const responseToCache = response.clone();
-
-        caches.open(CACHE_NAME)
-          .then((cache) => {
+        // If valid network response, clone and cache it
+        if (response && response.status === 200 && response.type === 'basic') {
+          const responseToCache = response.clone();
+          caches.open(CACHE_NAME).then((cache) => {
             cache.put(event.request, responseToCache);
           });
-
+        }
         return response;
       })
       .catch(() => {
-        // Network failed, try the cache
+        // Network failed, try Cache
         return caches.match(event.request)
           .then((response) => {
             if (response) {
               return response;
             }
             
-            // SPA Fallback: If it's a navigation request (e.g. /settings) and we are offline,
-            // serve index.html so the React app can load.
+            // Offline Fallback for Navigation (SPA Routing)
+            // If the user requests any page route (e.g. /dashboard) and we are offline,
+            // serve the cached index.html
             if (event.request.mode === 'navigate') {
               return caches.match('./index.html');
             }
